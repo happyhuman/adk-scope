@@ -1,0 +1,6 @@
+tree-sitter
+tree-sitter-python
+tree-sitter-java
+tree-sitter-go
+tree-sitter-typescript
+protobuf

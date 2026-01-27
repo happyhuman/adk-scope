@@ -1,0 +1,73 @@
+
+import unittest
+from unittest.mock import patch, MagicMock
+import sys
+
+# Mock tree_sitter modules BEFORE importing extractor
+mock_ts = MagicMock()
+mock_ts_py = MagicMock()
+sys.modules['tree_sitter'] = mock_ts
+sys.modules['tree_sitter_python'] = mock_ts_py
+
+from pathlib import Path
+from google.adk.scope.extractors.python.extractor import find_python_files, extract_features
+from google.adk.scope.extractors.python.types import Feature
+
+class TestExtractor(unittest.TestCase):
+    def test_find_python_files(self):
+        # Mock Path.rglob
+        with patch('pathlib.Path.exists', return_value=True), \
+             patch('pathlib.Path.rglob') as mock_rglob:
+            
+            p1 = Path("src/a.py")
+            p2 = Path("src/__init__.py") # Should be excluded
+            p3 = Path("src/.hidden.py") # Should be excluded
+            p4 = Path("src/b.py")
+            
+            mock_rglob.return_value = [p1, p2, p3, p4]
+            
+            results = list(find_python_files(Path("src")))
+            
+            self.assertIn(p1, results)
+            self.assertIn(p4, results)
+            self.assertNotIn(p2, results) # __init__ excluded
+            self.assertNotIn(p3, results) # hidden excluded
+            
+    @patch('google.adk.scope.extractors.python.extractor.PARSER')
+    @patch('google.adk.scope.extractors.python.extractor.PY_LANGUAGE')
+    def test_extract_features(self, mock_lang, mock_parser):
+        # Mock file read
+        mock_path = MagicMock(spec=Path)
+        mock_path.read_bytes.return_value = b"def foo(): pass"
+        
+        # Mock tree
+        mock_tree = MagicMock()
+        mock_parser.parse.return_value = mock_tree
+        
+        # Mock query
+        mock_query = MagicMock()
+        mock_lang.query.return_value = mock_query
+        
+        # Mock captures
+        # capture returns list of (node, tag)
+        mock_node = MagicMock()
+        mock_node.type = 'function_definition'
+        
+        # We need to mock NodeProcessor.process to avoid complex node mocking if we just want to test flow
+        with patch('google.adk.scope.extractors.python.extractor.NodeProcessor') as MockProcessor:
+            processor_instance = MockProcessor.return_value
+            expected_feature = Feature(original_name="foo", normalized_name="foo")
+            processor_instance.process.return_value = expected_feature
+            
+            mock_query.captures.return_value = [(mock_node, 'func')]
+            
+            features = extract_features(mock_path, Path("/repo"))
+            
+            self.assertEqual(len(features), 1)
+            self.assertEqual(features[0], expected_feature)
+            
+            # Verify process was called
+            processor_instance.process.assert_called_once()
+
+if __name__ == '__main__':
+    unittest.main()
