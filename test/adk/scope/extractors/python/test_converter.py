@@ -3,7 +3,9 @@ import unittest
 from unittest.mock import Mock, MagicMock
 from pathlib import Path
 from google.adk.scope.extractors.python.converter import NodeProcessor
-from google.adk.scope.extractors.python.types import Feature, Type, Maturity
+from google.adk.scope.features_pb2 import Feature
+
+
 
 class TestNodeProcessor(unittest.TestCase):
     def setUp(self):
@@ -49,7 +51,7 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result.original_name, "my_func")
         self.assertEqual(result.normalized_name, "my_func")
-        self.assertEqual(result.type, Type.FUNCTION)
+        self.assertEqual(result.type, Feature.Type.FUNCTION)
         self.assertEqual(result.namespace, "google.adk") # Based on /repo/src/google/adk/agent.py (src stripped)
         
     def test_process_method(self):
@@ -71,7 +73,7 @@ class TestNodeProcessor(unittest.TestCase):
         result = self.processor.process(node, self.file_path, self.repo_root)
         self.assertIsNotNone(result)
         self.assertEqual(result.member_of, "MyClass")
-        self.assertEqual(result.type, Type.INSTANCE_METHOD)
+        self.assertEqual(result.type, Feature.Type.INSTANCE_METHOD)
 
     def test_process_constructor(self):
         # Need to allow name extraction for class
@@ -85,7 +87,7 @@ class TestNodeProcessor(unittest.TestCase):
         
         result = self.processor.process(node, self.file_path, self.repo_root)
         self.assertEqual(result.original_name, "__init__")
-        self.assertEqual(result.type, Type.CONSTRUCTOR)
+        self.assertEqual(result.type, Feature.Type.CONSTRUCTOR)
 
     def test_parameters(self):
         # def func(a: int, b=2): ...

@@ -3,10 +3,9 @@ import pathlib
 import sys
 from typing import Iterator, List
 
+from google.protobuf.json_format import MessageToJson
 from google.adk.scope.extractors.python.converter import NodeProcessor
-from google.adk.scope.types import Feature
-from google.adk.scope.types import FeatureRegistry
-from google.adk.scope.types import to_json
+from google.adk.scope.features_pb2 import Feature, FeatureRegistry
 from google.adk.scope.utils.args import parse_args
 from tree_sitter import Language
 from tree_sitter import Parser
@@ -135,14 +134,13 @@ def main() -> None:
   registry = FeatureRegistry(
       language="PYTHON",
       version="0.0.0",  # TODO: Extract from version file?
-      schema_version="1.0.0",
       features=all_features,
   )
 
   # Output to JSON using protobuf's json_format
   try:
     with open(args.output, "w") as f:
-      f.write(to_json(registry, indent=2))
+      f.write(MessageToJson(registry, indent=2, preserving_proto_field_name=True))
     logger.info("Successfully wrote output to %s", args.output)
   except IOError as e:
     logger.error("Failed to write output: %s", e)

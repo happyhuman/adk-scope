@@ -4,3 +4,4 @@ tree-sitter-java
 tree-sitter-go
 tree-sitter-typescript
 protobuf
+ruff

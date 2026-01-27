@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple, Set
 from tree_sitter import Node
 
 from google.adk.scope.utils.strings import normalize_name, normalize_type
-from experimental.users.shahins.adk_scope.src.google.adk.scope.proto import feature_pb2
+from google.adk.scope import features_pb2 as feature_pb2
 
 class NodeProcessor:
     """Process Tree-sitter nodes into Feature objects."""
@@ -66,18 +66,18 @@ class NodeProcessor:
             return name_node.text.decode('utf-8')
         return ""
 
-    def _determine_type(self, node: Node, name: str, is_member: bool) -> feature_pb2.Type:
+    def _determine_type(self, node: Node, name: str, is_member: bool) -> feature_pb2.Feature.Type:
         if is_member:
             if name == '__init__':
-                return feature_pb2.TYPE_CONSTRUCTOR
+                return feature_pb2.Feature.CONSTRUCTOR
             
             # Check decorators for @classmethod or @staticmethod
             decorators = self._get_decorators(node)
             if 'classmethod' in decorators or 'staticmethod' in decorators:
-                return feature_pb2.TYPE_CLASS_METHOD
+                return feature_pb2.Feature.CLASS_METHOD
                 
-            return feature_pb2.TYPE_INSTANCE_METHOD
-        return feature_pb2.TYPE_FUNCTION
+            return feature_pb2.Feature.INSTANCE_METHOD
+        return feature_pb2.Feature.FUNCTION
 
     def _get_decorators(self, node: Node) -> Set[str]:
         decorators = set()
@@ -128,7 +128,7 @@ class NodeProcessor:
         normalized = namespace.replace(".", "_")
         return namespace, normalized
 
-    def _extract_params(self, node: Node) -> List[Param]:
+    def _extract_params(self, node: Node) -> List[feature_pb2.Param]:
         params = []
         parameters_node = node.child_by_field_name('parameters')
         if not parameters_node:
@@ -213,12 +213,12 @@ class NodeProcessor:
                 return False
         return True
 
-    def _extract_maturity(self, node: Node) -> feature_pb2.Maturity:
+    def _extract_maturity(self, node: Node) -> feature_pb2.Feature.Maturity:
         decorators = self._get_decorators(node)
         if 'deprecated' in decorators:
-            return feature_pb2.MATURITY_DEPRECATED
+            return feature_pb2.Feature.DEPRECATED
         if 'experimental' in decorators:
-            return feature_pb2.MATURITY_EXPERIMENTAL
+            return feature_pb2.Feature.EXPERIMENTAL
         if 'beta' in decorators:
-            return feature_pb2.MATURITY_BETA
-        return feature_pb2.MATURITY_STABLE
+            return feature_pb2.Feature.BETA
+        return feature_pb2.Feature.STABLE
