@@ -228,18 +228,21 @@ class TestExtractor(unittest.TestCase):
     @patch('google.adk.scope.extractors.python.extractor.parse_args')
     @patch('google.adk.scope.extractors.python.extractor.pathlib.Path.exists')
     def test_main_repo_no_src(self, mock_exists, mock_parse_args):
-        # input_repo exists, but src does not
-        def side_effect(self):
-            # check if path ends with 'src'
-            if str(self).endswith('src'):
+        # We need flexible side_effect because new logical checks might exist (like version file)
+        def side_effect(*args, **kwargs):
+            # args[0] should be self (the path instance) if called as method
+            # But wait, patch('pathlib.Path.exists') replaces the method on the class.
+            # When `input_path.exists()` is called, it translates to `Path.exists(input_path)`.
+            # So yes, args[0] is the path.
+            if not args:
+                return True # Fallback
+            path_str = str(args[0])
+            if path_str.endswith('src'):
                 return False
+            # Allow others
             return True
             
-        # We need to patch the instance method of the Path object created inside
-        # But here we are patching the class method or the property?
-        # The code uses: src_dir = input_path / "src"; if not src_dir.exists():
-        # Let's mock side_effect of exists
-        mock_exists.side_effect = [True, False] # repo exists, src does not
+        mock_exists.side_effect = side_effect
         
         mock_parse_args.return_value = argparse.Namespace(
             input_file=None, input_dir=None, input_repo=Path("/repo"), output=Path("out.json")
