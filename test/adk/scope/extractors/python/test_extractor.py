@@ -47,7 +47,6 @@ class TestExtractor(unittest.TestCase):
         mock_tree.root_node = MagicMock()
     
         # Mock query and cursor
-        mock_query_instance = mock_query_cls.return_value
         mock_cursor_instance = mock_cursor_cls.return_value
         
         # Mock captures
