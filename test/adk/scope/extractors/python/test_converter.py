@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import Mock
 from pathlib import Path
 from google.adk.scope.extractors.python.converter import NodeProcessor
+from google.adk.scope import features_pb2 as feature_pb2
 from google.adk.scope.features_pb2 import Feature
 
 
@@ -134,7 +135,7 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertEqual(len(result.parameters), 2)
         
         self.assertEqual(result.parameters[0].original_name, "a")
-        self.assertEqual(result.parameters[0].normalized_types, ["INT"])
+        self.assertEqual(result.parameters[0].normalized_types, [feature_pb2.ParamType.INT])
         self.assertFalse(result.parameters[0].is_optional)
         
         self.assertEqual(result.parameters[1].original_name, "b")

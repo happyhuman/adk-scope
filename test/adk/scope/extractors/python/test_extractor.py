@@ -33,36 +33,37 @@ class TestExtractor(unittest.TestCase):
             self.assertNotIn(p2, results) # __init__ excluded
             self.assertNotIn(p3, results) # hidden excluded
             
+    @patch('google.adk.scope.extractors.python.extractor.QueryCursor')
+    @patch('google.adk.scope.extractors.python.extractor.Query')
     @patch('google.adk.scope.extractors.python.extractor.PARSER')
-    @patch('google.adk.scope.extractors.python.extractor.PY_LANGUAGE')
-    def test_extract_features(self, mock_lang, mock_parser):
+    def test_extract_features(self, mock_parser, mock_query_cls, mock_cursor_cls):
         # Mock file read
         mock_path = MagicMock(spec=Path)
         mock_path.read_bytes.return_value = b"def foo(): pass"
-        
+    
         # Mock tree
         mock_tree = MagicMock()
         mock_parser.parse.return_value = mock_tree
-        
-        # Mock query
-        mock_query = MagicMock()
-        mock_lang.query.return_value = mock_query
+        mock_tree.root_node = MagicMock()
+    
+        # Mock query and cursor
+        mock_query_instance = mock_query_cls.return_value
+        mock_cursor_instance = mock_cursor_cls.return_value
         
         # Mock captures
-        # capture returns list of (node, tag)
+        # capture returns dict of {capture_name: [nodes]}
         mock_node = MagicMock()
         mock_node.type = 'function_definition'
-        
+        mock_cursor_instance.captures.return_value = {"func": [mock_node]}
+    
         # We need to mock NodeProcessor.process to avoid complex node mocking if we just want to test flow
         with patch('google.adk.scope.extractors.python.extractor.NodeProcessor') as MockProcessor:
             processor_instance = MockProcessor.return_value
             expected_feature = Feature(original_name="foo", normalized_name="foo")
             processor_instance.process.return_value = expected_feature
-            
-            mock_query.captures.return_value = [(mock_node, 'func')]
-            
+    
             features = extract_features(mock_path, Path("/repo"))
-            
+    
             self.assertEqual(len(features), 1)
             self.assertEqual(features[0], expected_feature)
             

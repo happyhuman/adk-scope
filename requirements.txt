@@ -5,3 +5,4 @@ tree-sitter-go
 tree-sitter-typescript
 protobuf
 ruff
+pytest

@@ -20,32 +20,32 @@ class TestArgs(unittest.TestCase):
         
     def test_arg_definitions(self):
         # Verify that the parser is set up with correct arguments
-        # We can inspect the parser by creating one manually or patching ArgumentParser
         with patch('argparse.ArgumentParser') as mock_parser_cls:
             mock_parser = mock_parser_cls.return_value
+            # We also need to mock the group returned by add_mutually_exclusive_group
+            mock_group = mock_parser.add_mutually_exclusive_group.return_value
+            
             parse_args()
             
-            # Verify calls
-            calls = mock_parser.add_argument.call_args_list
+            # Verify mutual exclusive group creation
+            mock_parser.add_mutually_exclusive_group.assert_called_once_with(required=True)
             
-            # We expect 2 calls: one for 'adk-repo' and one for 'output'
-            self.assertEqual(len(calls), 2)
+            # Verify group arguments
+            group_calls = mock_group.add_argument.call_args_list
+            self.assertEqual(len(group_calls), 3)
             
-            # Check first arg (adk-repo)
-            args1, kwargs1 = calls[0]
-            self.assertEqual(args1[0], 'adk_repo') # Expect underscore? No, user defined "adk-repo" in string but wait.
-            # In my implementation of args.py I used "adk_repo" in the python code?
-            # Let's check args.py content.
-            # Step 209: I implemented it with `parser.add_argument("adk_repo", ...)`
-            # So it should be 'adk_repo'.
-            
-            self.assertEqual(args1[0], 'adk_repo')
-            self.assertEqual(kwargs1['type'], Path)
-            
-            # Check second arg (output)
-            args2, kwargs2 = calls[1]
-            self.assertEqual(args2[0], 'output')
-            self.assertEqual(kwargs2['type'], Path)
+            # --input-file
+            self.assertEqual(group_calls[0][0][0], '--input-file')
+            # --input-dir
+            self.assertEqual(group_calls[1][0][0], '--input-dir')
+            # --input-repo
+            self.assertEqual(group_calls[2][0][0], '--input-repo')
+
+            # Verify parser arguments (output)
+            # add_argument is called once for 'output' on the parser itself
+            parser_calls = mock_parser.add_argument.call_args_list
+            self.assertEqual(len(parser_calls), 1) 
+            self.assertEqual(parser_calls[0][0][0], 'output')
 
 if __name__ == '__main__':
     unittest.main()
