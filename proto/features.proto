@@ -2,6 +2,23 @@ syntax = "proto3";
 
 package google.adk.meta;
 
+
+/**
+ * ParamType: Represents a typed data entry used for parameters.
+ */
+enum ParamType {
+  OBJECT = 0;
+  STRING = 1;
+  INT = 2;
+  FLOAT = 3;
+  BOOL = 4;
+  LIST = 6;
+  MAP = 7;
+  SET = 8;
+  UNKNOWN = 9;
+}
+
+
 /**
  * Param: Represents a typed data entry used for parameters.
  */
@@ -10,7 +27,7 @@ message Param {
   string normalized_name = 2;       // Key for Matcher (snake_case).
   
   repeated string original_types = 3;   // Raw types from source (e.g., "long", "int64").
-  repeated string normalized_types = 4; // Canonical types (e.g., "INT").
+  repeated ParamType normalized_types = 4; // Canonical types (e.g., "INT").
   
   string description = 5;           // Explanation of the parameter.
   bool is_optional = 6;             // True if nullable or has a default.

@@ -1,6 +1,6 @@
 
 import unittest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 from pathlib import Path
 from google.adk.scope.extractors.python.converter import NodeProcessor
 from google.adk.scope.features_pb2 import Feature
@@ -98,8 +98,10 @@ class TestNodeProcessor(unittest.TestCase):
         p1_node = self.create_mock_node("typed_parameter")
         # Mock child_by_field_name for p1
         def p1_child(name):
-            if name == 'name': return p1_name
-            if name == 'type': return p1_type
+            if name == 'name':
+                return p1_name
+            if name == 'type':
+                return p1_type
             return None
         p1_node.child_by_field_name.side_effect = p1_child
         p1_node.children = [p1_name, p1_type] # Fallback if logic uses children
@@ -108,7 +110,8 @@ class TestNodeProcessor(unittest.TestCase):
         p2_name = self.create_mock_node("identifier", text="b")
         p2_node = self.create_mock_node("default_parameter")
         def p2_child(name):
-            if name == 'name': return p2_name
+            if name == 'name':
+                return p2_name
             return None
         p2_node.child_by_field_name.side_effect = p2_child
         p2_node.children = [p2_name]
@@ -120,8 +123,10 @@ class TestNodeProcessor(unittest.TestCase):
         
         node = self.create_mock_node("function_definition", children=[params_node])
         def node_child(name):
-            if name == 'name': return name_node
-            if name == 'parameters': return params_node
+            if name == 'name':
+                return name_node
+            if name == 'parameters':
+                return params_node
             return None
         node.child_by_field_name.side_effect = node_child
         

@@ -1,13 +1,13 @@
 """
 Converter to transform Tree-sitter nodes into Feature objects.
 """
-import re
+
 from pathlib import Path
 from typing import List, Optional, Tuple, Set
 
 from tree_sitter import Node
 
-from google.adk.scope.utils.strings import normalize_name, normalize_type
+from google.adk.scope.utils.strings import normalize_name, normalize_type_complex
 from google.adk.scope import features_pb2 as feature_pb2
 
 class NodeProcessor:
@@ -28,6 +28,10 @@ class NodeProcessor:
         original_name = self._extract_name(node)
         if not original_name:
             return None
+
+        # Filter private methods
+        if original_name.startswith('_') and original_name not in ('__init__', '__call__'):
+            return None
             
         normalized_name = normalize_name(original_name)
         
@@ -42,6 +46,11 @@ class NodeProcessor:
         parameters = self._extract_params(node)
         original_returns, normalized_returns = self._extract_return_types(node)
         blocking = self._is_blocking(node)
+        # Force non-blocking if async
+        if not blocking:
+            # Maybe redundant check, but ensures property consistency
+            pass
+            
         maturity = self._extract_maturity(node)
         
         return feature_pb2.Feature(
@@ -49,7 +58,7 @@ class NodeProcessor:
             normalized_name=normalized_name,
             member_of=member_of,
             normalized_member_of=normalized_member_of,
-            file_path=str(file_path.relative_to(repo_root)),
+            file_path=str(file_path.resolve()),
             namespace=namespace,
             normalized_namespace=normalized_namespace,
             maturity=maturity,
@@ -81,7 +90,7 @@ class NodeProcessor:
 
     def _get_decorators(self, node: Node) -> Set[str]:
         decorators = set()
-        parent = node.parent
+
         # In tree-sitter-python, decorators are usually siblings just before the function_definition
         # wrapped in a 'decorated_definition' node if present?
         # Actually structure:
@@ -171,7 +180,8 @@ class NodeProcessor:
             
         elif node.type == 'typed_default_parameter':
              name_node = node.child_by_field_name('name')
-             if name_node: name = name_node.text.decode('utf-8')
+             if name_node:
+                 name = name_node.text.decode('utf-8')
              type_node = node.child_by_field_name('type')
              if type_node:
                  types.append(type_node.text.decode('utf-8'))
@@ -179,12 +189,45 @@ class NodeProcessor:
 
         if not name:
             return None
-            
+        
+        normalized_strings = []
+        for t in types:
+            normalized_strings.extend(normalize_type_complex(t))
+        # Unique
+        normalized_strings = sorted(list(set(normalized_strings)))
+        if not normalized_strings:
+            normalized_strings = ["OBJECT"]
+
+        # Map to enum
+        normalized_enums = []
+        for s in normalized_strings:
+            # s is like "INT", "STRING", "null"
+            # ParamType has OBJECT=0, STRING=1, ..., UNKNOWN=9
+            # "null" -> ?
+            # If s is "null", we usually skip it in types enum list? 
+            # Or map to UNKNOWN?
+            # Or better: "null" in types usually implies is_optional=True. 
+            # But we already set is_optional based on default value.
+            # Optional[T] -> [T, null].
+            # If we just depend on is_optional, maybe we can drop "null" from types list if checking ParamType?
+            # Protocol Buffer enums don't have NULL usually.
+            # Let's drop "null" from the enum list for now, or map to UNKNOWN if forced.
+            if s == "null":
+                continue
+                
+            try:
+                enum_val = getattr(feature_pb2.ParamType, s)
+                normalized_enums.append(enum_val)
+            except AttributeError:
+                # Fallback to OBJECT or UNKNOWN?
+                # User defined OBJECT=0.
+                normalized_enums.append(feature_pb2.ParamType.OBJECT)
+
         return feature_pb2.Param(
             original_name=name,
             normalized_name=normalize_name(name),
             original_types=types,
-            normalized_types=[normalize_type(t) for t in types],
+            normalized_types=normalized_enums,
             is_optional=optional
         )
 
@@ -194,7 +237,8 @@ class NodeProcessor:
         return_type_node = node.child_by_field_name('return_type')
         if return_type_node:
             raw = return_type_node.text.decode('utf-8')
-            return [raw], [normalize_type(raw)]
+            normalized = normalize_type_complex(raw)
+            return [raw], normalized
         return [], []
 
     def _is_blocking(self, node: Node) -> bool:

@@ -12,11 +12,24 @@ def parse_args() -> argparse.Namespace:
         argparse.Namespace: The parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Extract features from ADK Python repository.")
-    parser.add_argument(
-        "adk_repo",
+    
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--input-file",
         type=Path,
-        help="Path to the ADK Python repository root",
+        help="Single file to extract.",
     )
+    group.add_argument(
+        "--input-dir",
+        type=Path,
+        help="Directory to extract (non-recursive).",
+    )
+    group.add_argument(
+        "--input-repo",
+        type=Path,
+        help="Repository root to extract (recursive in src).",
+    )
+    
     parser.add_argument(
         "output",
         type=Path,

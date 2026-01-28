@@ -9,9 +9,9 @@ mock_ts_py = MagicMock()
 sys.modules['tree_sitter'] = mock_ts
 sys.modules['tree_sitter_python'] = mock_ts_py
 
-from pathlib import Path
-from google.adk.scope.extractors.python.extractor import find_python_files, extract_features
-from google.adk.scope.features_pb2 import Feature
+from pathlib import Path  # noqa: E402
+from google.adk.scope.extractors.python.extractor import find_python_files, extract_features  # noqa: E402
+from google.adk.scope.features_pb2 import Feature  # noqa: E402
 
 class TestExtractor(unittest.TestCase):
     def test_find_python_files(self):
