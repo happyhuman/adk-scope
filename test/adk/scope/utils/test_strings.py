@@ -52,6 +52,48 @@ class TestStrings(unittest.TestCase):
         # Fallback
         self.assertEqual(normalize_type("CustomType"), "OBJECT")
         self.assertEqual(normalize_type("Any"), "OBJECT")
+        self.assertEqual(normalize_type(""), "OBJECT")
+
+
+    def test_normalize_type_complex(self):
+        from google.adk.scope.utils.strings import normalize_type_complex
+        
+        # Simple types
+        self.assertEqual(normalize_type_complex("int"), ["INT"])
+        self.assertEqual(normalize_type_complex("str"), ["STRING"])
+        self.assertEqual(normalize_type_complex(""), ["OBJECT"])
+        
+        # Generics - List
+        self.assertEqual(normalize_type_complex("List[int]"), ["LIST"])
+        self.assertEqual(normalize_type_complex("List[str]"), ["LIST"])
+        self.assertEqual(normalize_type_complex("list[int]"), ["LIST"]) # lowercase
+        
+        # Generics - Union
+        self.assertEqual(set(normalize_type_complex("Union[int, str]")), {"INT", "STRING"})
+
+        # check explicit behavior for None/none in simple_normalize
+        # _simple_normalize('none') -> 'null'
+        self.assertEqual(set(normalize_type_complex("Union[int, None]")), {"INT", "null"})
+
+        # Generics - Optional
+        self.assertEqual(set(normalize_type_complex("Optional[int]")), {"INT", "null"})
+        self.assertEqual(set(normalize_type_complex("Optional[List[str]]")), {"LIST", "null"})
+        
+        # Generics - AsyncGenerator
+        self.assertEqual(set(normalize_type_complex("AsyncGenerator[int, str]")), {"INT", "STRING"})
+        
+        # Generics - Tuple
+        self.assertEqual(set(normalize_type_complex("tuple[int, str]")), {"INT", "STRING"})
+        self.assertEqual(set(normalize_type_complex("Tuple[int, str]")), {"INT", "STRING"})
+        
+        # Nested generics
+        self.assertEqual(set(normalize_type_complex("Union[List[int], Optional[str]]")), {"LIST", "STRING", "null"})
+
+    def test_split_generics(self):
+        from google.adk.scope.utils.strings import _split_generics
+        self.assertEqual(_split_generics("a, b"), ["a", "b"])
+        self.assertEqual(_split_generics("List[a,b], c"), ["List[a,b]", "c"])
+        self.assertEqual(_split_generics("Union[A, B[C, D]], E"), ["Union[A, B[C, D]]", "E"])
 
 if __name__ == '__main__':
     unittest.main()
