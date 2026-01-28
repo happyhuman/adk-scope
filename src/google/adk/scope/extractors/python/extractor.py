@@ -158,10 +158,25 @@ def main():  # Output to JSON using protobuf's json_format
 
   logger.info("Total features found: %d", len(all_features))
 
+  # Extract version if repo root can be determined
+  version = "0.0.0"
+  if args.input_repo:
+      version_file = args.input_repo / "src" / "google" / "adk" / "version.py"
+      if version_file.exists():
+          try:
+              content = version_file.read_text()
+              for line in content.splitlines():
+                  if line.startswith("__version__"):
+                      # __version__ = "1.22.0"
+                      version = line.split("=")[1].strip().strip('"').strip("'")
+                      break
+          except Exception as e:
+              logger.warning("Failed to read version file: %s", e)
+
   # Create Registry
   registry = FeatureRegistry(
       language="PYTHON",
-      version="0.0.0",  # TODO: Extract from version file?
+      version=version,
       features=all_features,
   )
 
