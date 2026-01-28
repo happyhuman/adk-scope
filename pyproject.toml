@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adk-scope"
+version = "0.1.0"
+description = "ADK Scope - Codebase Extractor"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "tree-sitter",
+    "tree-sitter-python",
+    "tree-sitter-java",
+    "tree-sitter-go",
+    "tree-sitter-typescript",
+    "protobuf",
+    "ruff",
+    "pytest",
+    "pytest-cov",
+]
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "src"
+]
+testpaths = [
+    "test"
+]

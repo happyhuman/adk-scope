@@ -86,7 +86,7 @@ def _simple_normalize(t: str) -> str:
     if t in ('str', 'string'):
         return 'STRING'
     if t in ('bool', 'boolean'):
-        return 'BOOL'
+        return 'BOOLEAN'
     if t == 'any':
         return 'OBJECT'
     if not t:
