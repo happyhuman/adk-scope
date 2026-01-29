@@ -79,10 +79,8 @@ def _simple_normalize(t: str) -> str:
         return 'SET'
     if t in ('map', 'dictionary', 'dict', 'record', 'hash'):
         return 'MAP'
-    if t in ('int', 'integer', 'long', 'int64'):
-        return 'INT'
-    if t in ('float', 'double'):
-        return 'FLOAT'
+    if t in ('int', 'integer', 'long', 'int64', 'float', 'double'):
+        return 'NUMBER'
     if t in ('str', 'string'):
         return 'STRING'
     if t in ('bool', 'boolean'):

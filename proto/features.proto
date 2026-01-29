@@ -9,13 +9,12 @@ package google.adk.meta;
 enum ParamType {
   OBJECT = 0;
   STRING = 1;
-  INT = 2;
-  FLOAT = 3;
-  BOOLEAN = 4;
-  LIST = 6;
-  MAP = 7;
-  SET = 8;
-  UNKNOWN = 9;
+  NUMBER = 2;
+  BOOLEAN = 3;
+  LIST = 4;
+  MAP = 5;
+  SET = 6;
+  UNKNOWN = 7;
 }
 
 

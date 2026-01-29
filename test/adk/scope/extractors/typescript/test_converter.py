@@ -316,8 +316,7 @@ class TestNodeProcessor(unittest.TestCase):
         # _normalize_ts_type('string') -> ['STRING']
         # Combined -> STRING, FLOAT, INT
         self.assertIn(feature_pb2.ParamType.STRING, result.parameters[0].normalized_types)
-        self.assertIn(feature_pb2.ParamType.INT, result.parameters[0].normalized_types)
-        self.assertIn(feature_pb2.ParamType.FLOAT, result.parameters[0].normalized_types)
+        self.assertIn(feature_pb2.ParamType.NUMBER, result.parameters[0].normalized_types)
 
 
     def test_namespace_extraction(self):

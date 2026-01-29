@@ -322,63 +322,157 @@ class NodeProcessor:
         for child in parameters_node.children:
             # Types: required_parameter, optional_parameter, rest_parameter
             if child.type in ('required_parameter', 'optional_parameter', 'rest_parameter'):
-                p = self._process_param_node(child)
-                if p:
+                xml_params = self._process_param_node(child)
+                for p in xml_params:
                     if p.original_name in param_docs and param_docs[p.original_name]:
                         p.description = param_docs[p.original_name]
                     params.append(p)
         return params
 
-    def _process_param_node(self, node: Node) -> Optional[feature_pb2.Param]:
-        name = ""
-        types = []
-        optional = False
+    def _process_param_node(self, node: Node) -> List[feature_pb2.Param]:
+        # returns a LIST of Params to handle destructuring
         
-        # 1. Type extraction (prioritized for naming)
-        raw_type_str = ""
-        type_node = node.child_by_field_name('type')
-        if type_node:
-            raw_type = type_node.text.decode('utf-8')
-            if raw_type.startswith(':'):
-                raw_type = raw_type[1:].strip()
-            types.append(raw_type)
-            raw_type_str = raw_type
-            
-        # 2. Name extraction
+        # 1. Name extraction
         pattern_node = node.child_by_field_name('pattern')
         if not pattern_node:
-            # sometimes just (identifier) if no pattern field?
-            # tree-sitter-typescript: required_parameter -> pattern, type
-            # pattern is usually identifier
              for child in node.children:
                  if child.type == 'identifier':
                      pattern_node = child
                      break
+        
+        # 2. Type extraction
+        type_node = node.child_by_field_name('type')
+        
+        if pattern_node and pattern_node.type == 'object_pattern':
+            # Handle destructuring: { a, b }: { a: string, b: number }
+            # If type is NOT an inline object literal, we might still want to emit a single parameter?
+            # User specifically requested "list of 3 parameters" for the case where it IS a destructuring.
+            # But if it is typed as a named interface (e.g. `MyRequest`), do we still explode it?
+            # Previous logic was: if typed as named interface, use that name.
+            # User logic: "There are 3 parameters".
+            # If it has an inline object literal type, we DEFINITELY explode it.
+            # If it has a named type, we might want to keep it as one (context dependent), but for now 
+            # let's assume if we can map it, we explode it? 
+            # Actually, the user complaint is specifically about `{ hint, ... }: { hint: string ... }`.
+            # If type is `MyContext`, we usually want `context` as param name (previous fix).
+            # So: Check if type is object type literal.
+            
+            raw_type_str = ""
+            if type_node:
+                raw_type_str = type_node.text.decode('utf-8')
+                if raw_type_str.startswith(':'):
+                    raw_type_str = raw_type_str[1:].strip()
 
+            is_literal_type = raw_type_str and raw_type_str.strip().startswith('{')
+            
+            if not is_literal_type and raw_type_str:
+                # Use named type as parameter name (previous behavior for non-literal)
+                name = self._derive_name_from_type(raw_type_str)
+                p = self._create_single_param(name, [raw_type_str], node.type == 'optional_parameter')
+                return [p]
+            
+            # Explode destructuring
+            extracted_params = []
+            
+            # Parse type map if available
+            type_map = {} # name -> (type_str, optional_bool)
+            if type_node:
+                 # Check for object_type node inside type_node
+                 # type_annotation -> object_type
+                 object_type_node = None
+                 for child in type_node.children:
+                     if child.type == 'object_type':
+                         object_type_node = child
+                         break
+                 
+                 if object_type_node:
+                     for child in object_type_node.children:
+                         if child.type == 'property_signature':
+                             # name: property_identifier
+                             # type: type_annotation
+                             # optional?
+                             prop_name_node = child.child_by_field_name('name')
+                             prop_type_node = child.child_by_field_name('type')
+                             
+                             if prop_name_node:
+                                 p_name = prop_name_node.text.decode('utf-8')
+                                 p_type = ""
+                                 if prop_type_node:
+                                     p_type = prop_type_node.text.decode('utf-8')
+                                     if p_type.startswith(':'): p_type = p_type[1:].strip()
+                                 
+                                 # Optionality check: check for '?' node or if literal text has ?
+                                 # child text might be "hint?:"
+                                 # or checking for optional node
+                                 p_optional = False
+                                 for sub in child.children:
+                                     if sub.type == '?' or sub.text.decode('utf-8') == '?':
+                                          p_optional = True
+                                          break
+                                 
+                                 type_map[p_name] = (p_type, p_optional)
+
+            # Iterate pattern properties
+            for child in pattern_node.children:
+                if child.type == 'shorthand_property_identifier_pattern' or child.type == 'shorthand_property_identifier':
+                    p_name = child.text.decode('utf-8')
+                    # Look up type
+                    p_type, p_opt = type_map.get(p_name, ("unknown", False))
+                    extracted_params.append(self._create_single_param(p_name, [p_type], p_opt or node.type == 'optional_parameter'))
+                elif child.type == 'pair_pattern':
+                    # key: value -> alias
+                    # value is the variable name (pattern)
+                    # key is the property name
+                    # constructor({ hint: myHint })
+                    prop_name_node = child.child_by_field_name('key')
+                    pattern_val_node = child.child_by_field_name('value')
+                    
+                    if pattern_val_node and prop_name_node:
+                         var_name = pattern_val_node.text.decode('utf-8') # myHint
+                         prop_name = prop_name_node.text.decode('utf-8') # hint
+                         
+                         # Type lookup uses prop_name
+                         p_type, p_opt = type_map.get(prop_name, ("unknown", False))
+                         extracted_params.append(self._create_single_param(var_name, [p_type], p_opt or node.type == 'optional_parameter'))
+                elif child.type == 'object_assignment_pattern':
+                    # Destructuring with default value: { a = 1 }
+                    left_node = child.child_by_field_name('left')
+                    if left_node:
+                        # left is the identifier
+                        p_name = left_node.text.decode('utf-8')
+                        p_type, p_opt = type_map.get(p_name, ("unknown", False))
+                        
+                        # Presence of default value makes it optional
+                        extracted_params.append(self._create_single_param(p_name, [p_type], True))
+            
+            if not extracted_params:
+                # Fallback to flattening if no children found or parse error
+                text = pattern_node.text.decode('utf-8')
+                name = re.sub(r'\s+', ' ', text).strip()
+                return [self._create_single_param(name, ["OBJECT"], node.type == 'optional_parameter')]
+                
+            return extracted_params
+
+        # Standard identifier handling
+        name = ""
         if pattern_node:
-            if pattern_node.type == 'object_pattern':
-                if raw_type_str:
-                    # Priority 1: Derive from type
-                    name = self._derive_name_from_type(raw_type_str)
-                else:
-                    # Priority 2: Flatten source
-                    text = pattern_node.text.decode('utf-8')
-                    name = re.sub(r'\s+', ' ', text).strip()
-            else:
-                name = pattern_node.text.decode('utf-8')
+             name = pattern_node.text.decode('utf-8')
         
+        # Type extraction for single param
+        raw_type = ""
+        if type_node:
+            raw_type = type_node.text.decode('utf-8')
+            if raw_type.startswith(':'):
+                raw_type = raw_type[1:].strip()
+                
         if not name:
-            return None
+            return []
+            
+        return [self._create_single_param(name, [raw_type] if raw_type else [], node.type == 'optional_parameter')]
 
-        if node.type == 'optional_parameter':
-            optional = True
-        
+    def _create_single_param(self, name: str, types: List[str], optional: bool) -> feature_pb2.Param:
         normalized_strings = []
         for t in types:
-            # normalize_type_complex is Python specific (Union[A,B])
-            # We might need a TS specific one, or reuse it if syntax matches
-            # TS uses A | B, not Union[A, B] usually (unless explicit)
-            # We'll normalize manually here for basic handling
             normalized_strings.extend(self._normalize_ts_type(t))
             
         normalized_strings = sorted(list(set(normalized_strings)))
@@ -458,10 +552,12 @@ class NodeProcessor:
         if t_lower in ('string', 'formattedstring', 'path'):
             return ['STRING']
         if t_lower in ('number', 'int', 'float', 'integer', 'double'):
-            return ['FLOAT', 'INT'] 
+            return ['NUMBER'] 
         if t_lower in ('boolean', 'bool'):
             return ['BOOLEAN']
-        if t_lower in ('any', 'unknown', 'object'):
+        if t_lower == 'unknown':
+            return ['UNKNOWN']
+        if t_lower in ('any', 'object'):
             return ['OBJECT']
         if t_lower.endswith('[]'):
             return ['LIST']

@@ -133,7 +133,7 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertEqual(len(result.parameters), 2)
         
         self.assertEqual(result.parameters[0].original_name, "a")
-        self.assertEqual(result.parameters[0].normalized_types, [feature_pb2.ParamType.INT])
+        self.assertEqual(result.parameters[0].normalized_types, [feature_pb2.ParamType.NUMBER])
         self.assertFalse(result.parameters[0].is_optional)
         
         self.assertEqual(result.parameters[1].original_name, "b")
@@ -316,7 +316,7 @@ class TestNodeProcessor(unittest.TestCase):
         
         # Verify typed default
         self.assertEqual(result.parameters[1].original_name, "typed")
-        self.assertEqual(result.parameters[1].normalized_types, [feature_pb2.ParamType.INT])
+        self.assertEqual(result.parameters[1].normalized_types, [feature_pb2.ParamType.NUMBER])
         self.assertTrue(result.parameters[1].is_optional)
 
     def test_unknown_param_type_and_null(self):
@@ -370,7 +370,7 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertEqual(result.parameters[0].normalized_types, [feature_pb2.ParamType.OBJECT])
         
         # b: Optional[int] -> [int, null] -> [INT, null] -> INT (null skipped)
-        self.assertEqual(result.parameters[1].normalized_types, [feature_pb2.ParamType.INT])
+        self.assertEqual(result.parameters[1].normalized_types, [feature_pb2.ParamType.NUMBER])
 
     def test_param_empty_name(self):
         # Param with empty name

@@ -42,9 +42,9 @@ class TestStrings(unittest.TestCase):
         self.assertEqual(normalize_type("Map"), "MAP")
         
         # Primitives
-        self.assertEqual(normalize_type("int"), "INT")
-        self.assertEqual(normalize_type("Integer"), "INT")
-        self.assertEqual(normalize_type("float"), "FLOAT")
+        self.assertEqual(normalize_type("int"), "NUMBER")
+        self.assertEqual(normalize_type("Integer"), "NUMBER")
+        self.assertEqual(normalize_type("float"), "NUMBER")
         self.assertEqual(normalize_type("str"), "STRING")
         self.assertEqual(normalize_type("String"), "STRING")
         self.assertEqual(normalize_type("bool"), "BOOLEAN")
@@ -59,7 +59,7 @@ class TestStrings(unittest.TestCase):
         from google.adk.scope.utils.strings import normalize_type_complex
         
         # Simple types
-        self.assertEqual(normalize_type_complex("int"), ["INT"])
+        self.assertEqual(normalize_type_complex("int"), ["NUMBER"])
         self.assertEqual(normalize_type_complex("str"), ["STRING"])
         self.assertEqual(normalize_type_complex(""), ["OBJECT"])
         
@@ -69,22 +69,22 @@ class TestStrings(unittest.TestCase):
         self.assertEqual(normalize_type_complex("list[int]"), ["LIST"]) # lowercase
         
         # Generics - Union
-        self.assertEqual(set(normalize_type_complex("Union[int, str]")), {"INT", "STRING"})
+        self.assertEqual(set(normalize_type_complex("Union[int, str]")), {"NUMBER", "STRING"})
 
         # check explicit behavior for None/none in simple_normalize
         # _simple_normalize('none') -> 'null'
-        self.assertEqual(set(normalize_type_complex("Union[int, None]")), {"INT", "null"})
+        self.assertEqual(set(normalize_type_complex("Union[int, None]")), {"NUMBER", "null"})
 
         # Generics - Optional
-        self.assertEqual(set(normalize_type_complex("Optional[int]")), {"INT", "null"})
+        self.assertEqual(set(normalize_type_complex("Optional[int]")), {"NUMBER", "null"})
         self.assertEqual(set(normalize_type_complex("Optional[List[str]]")), {"LIST", "null"})
         
         # Generics - AsyncGenerator
-        self.assertEqual(set(normalize_type_complex("AsyncGenerator[int, str]")), {"INT", "STRING"})
+        self.assertEqual(set(normalize_type_complex("AsyncGenerator[int, str]")), {"NUMBER", "STRING"})
         
         # Generics - Tuple
-        self.assertEqual(set(normalize_type_complex("tuple[int, str]")), {"INT", "STRING"})
-        self.assertEqual(set(normalize_type_complex("Tuple[int, str]")), {"INT", "STRING"})
+        self.assertEqual(set(normalize_type_complex("tuple[int, str]")), {"NUMBER", "STRING"})
+        self.assertEqual(set(normalize_type_complex("Tuple[int, str]")), {"NUMBER", "STRING"})
         
         # Nested generics
         self.assertEqual(set(normalize_type_complex("Union[List[int], Optional[str]]")), {"LIST", "STRING", "null"})
