@@ -183,7 +183,7 @@ def main():  # Output to JSON using protobuf's json_format
   # Output to JSON using protobuf's json_format
   try:
     with open(args.output, "w") as f:
-      f.write(MessageToJson(registry, indent=2, preserving_proto_field_name=True))
+      f.write(MessageToJson(registry, indent=2, preserving_proto_field_name=True, always_print_fields_with_no_presence=True))
     logger.info("Successfully wrote output to %s", args.output)
   except IOError as e:
     logger.error("Failed to write output: %s", e)

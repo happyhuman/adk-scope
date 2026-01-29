@@ -51,7 +51,7 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertEqual(result.original_name, "my_func")
         self.assertEqual(result.normalized_name, "my_func")
         self.assertEqual(result.type, Feature.Type.FUNCTION)
-        self.assertEqual(result.namespace, "google.adk") # Based on /repo/src/google/adk/agent.py (src stripped)
+        self.assertEqual(result.namespace, "") # Based on /repo/src/google/adk/agent.py (src and google.adk stripped)
         
     def test_process_method(self):
         # Class definition -> Function definition
@@ -160,25 +160,7 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertEqual(result.original_return_types, ["str"])
         self.assertEqual(result.normalized_return_types, ["STRING"])
 
-    def test_async_function(self):
-        # async def func(): ...
-        # 'async' node is usually a child of function_definition or parent decorated_definition? 
-        # In current extractor implementation logic line 255: checks if child.type == 'async'
-        
-        name_node = self.create_mock_node("identifier", text="func")
-        name_node.field_name = "name"
-        
-        async_node = self.create_mock_node("async", text="async")
-        
-        node = self.create_mock_node("function_definition", children=[async_node, name_node])
-        def node_child(name):
-            if name == 'name':
-                return name_node
-            return None
-        node.child_by_field_name.side_effect = node_child
-        
-        result = self.processor.process(node, self.file_path, self.repo_root)
-        self.assertFalse(result.blocking)
+
 
     def test_decorators_classmethod(self):
         # @classmethod
@@ -247,6 +229,19 @@ class TestNodeProcessor(unittest.TestCase):
         result = self.processor.process(node, self.file_path, self.repo_root)
         self.assertEqual(result.maturity, Feature.Maturity.BETA)
 
+        # Stable (no decorator) -> No maturity set
+        # Re-create simple func
+        name_node = self.create_mock_node("identifier", text="stable_func")
+        name_node.field_name = "name"
+        node = self.create_mock_node("function_definition", children=[name_node])
+        def node_child(name):
+            if name == 'name': return name_node
+            return None
+        node.child_by_field_name.side_effect = node_child
+        
+        result = self.processor.process(node, self.file_path, self.repo_root)
+        # Should not have maturity field set
+        self.assertFalse(result.HasField("maturity"))
     def test_private_method(self):
         name_node = self.create_mock_node("identifier", text="_private")
         name_node.field_name = "name"
@@ -420,5 +415,109 @@ class TestNodeProcessor(unittest.TestCase):
         # Should fallback to OBJECT
         self.assertEqual(result.parameters[0].normalized_types, [feature_pb2.ParamType.OBJECT])
 
-if __name__ == '__main__':
-    unittest.main()
+    def test_process_docstrings(self):
+        # def func(a, b):
+        #     """My docstring.
+        #
+        #     Args:
+        #         a (str): Description for a.
+        #         b: Description for b.
+        #     """
+        #     pass
+
+        name_node = self.create_mock_node("identifier", text="func")
+        name_node.field_name = "name"
+        
+        # Params
+        p1_name = self.create_mock_node("identifier", text="a")
+        p1 = self.create_mock_node("typed_parameter")
+        def p1_child(name):
+            if name == 'name': return p1_name
+            return None
+        p1.child_by_field_name.side_effect = p1_child
+        
+        p2_name = self.create_mock_node("identifier", text="b")
+        p2 = self.create_mock_node("identifier", text="b") # simple identifier param
+        
+        params_node = self.create_mock_node("parameters", children=[p1, p2])
+        params_node.field_name = "parameters"
+
+        # Docstring
+        docstring_text = '"""My docstring.\n\n    Args:\n        a (str): Description for a.\n        b: Description for b.\n    """'
+        string_node = self.create_mock_node("string", text=docstring_text)
+        expr_stmt = self.create_mock_node("expression_statement", children=[string_node])
+        
+        body_node = self.create_mock_node("block", children=[expr_stmt])
+        body_node.field_name = "body"
+        
+        node = self.create_mock_node("function_definition", children=[name_node, params_node, body_node])
+        def node_child(name):
+            if name == 'name': return name_node
+            if name == 'parameters': return params_node
+            if name == 'body': return body_node
+            return None
+        node.child_by_field_name.side_effect = node_child
+        
+        result = self.processor.process(node, self.file_path, self.repo_root)
+        
+        self.assertIsNotNone(result)
+        # Check description (should exclude Args)
+        self.assertEqual(result.description, "My docstring.")
+        
+        # Check params
+        self.assertEqual(len(result.parameters), 2)
+        self.assertEqual(result.parameters[0].original_name, "a")
+        self.assertEqual(result.parameters[0].description, "Description for a.")
+        
+        self.assertEqual(result.parameters[1].original_name, "b")
+        self.assertEqual(result.parameters[1].description, "Description for b.")
+
+    def test_async_method(self):
+        # async def func(): ...
+        name_node = self.create_mock_node("identifier", text="func")
+        name_node.field_name = "name"
+        
+        # Async modifier
+        async_node = self.create_mock_node("async")
+        
+        # In tree-sitter, async is usually a child of function_definition
+        node = self.create_mock_node("function_definition", children=[async_node, name_node])
+        
+        def node_child(name):
+            if name == 'name': return name_node
+            return None
+        node.child_by_field_name.side_effect = node_child
+        
+        result = self.processor.process(node, self.file_path, self.repo_root)
+        
+        # Should have async=True
+        # Use kwargs access or getattr
+        # Protobuf field name is likely 'async' in some contexts but access might need handling
+        # Since we verified 'async' is in descriptor, let's try getattr(result, "async") or similar?
+        # Actually in Python it might be result.async if Python version allows (3.7+ prevents it as attribute)
+        # So we expect result.async_ usually?
+        # Wait, my inspection script said "Field 'async' found". It did NOT say 'async_'.
+        # But accessing it: getattr(result, 'async') works?
+        # Let's check logic:
+        # If I used feature_kwargs["async"] = True, it should correspond to 'async' field.
+        # But if 'async' is keyword, accessing it as attribute is syntax error.
+        
+        # We can use HasField("async")?
+        # HasField works with string name.
+        self.assertTrue(result.HasField("async"))
+        # Get value
+        # self.assertTrue(getattr(result, "async")) might fail syntax parsing if I try result.async
+        # But getattr(result, "async") is runtime safe.
+        
+    def test_sync_method(self):
+         name_node = self.create_mock_node("identifier", text="func")
+         name_node.field_name = "name"
+         node = self.create_mock_node("function_definition", children=[name_node])
+         def node_child(name):
+             if name == 'name': return name_node
+             return None
+         node.child_by_field_name.side_effect = node_child
+         
+         result = self.processor.process(node, self.file_path, self.repo_root)
+         # Should NOT have async set
+         self.assertFalse(result.HasField("async"))
