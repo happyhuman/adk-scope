@@ -42,8 +42,8 @@ class TestNodeProcessor(unittest.TestCase):
         name_node.field_name = "name"
         
         # Param
-        p1_name = self.create_mock_node("identifier", text="p1")
-        p1_type = self.create_mock_node("type_identifier", text="string")
+        _p1_name = self.create_mock_node("identifier", text="p1")
+        _p1_type = self.create_mock_node("type_identifier", text="string")
         # In actual structure it might be more complex, but let's mock essential
         # required_parameter -> identifier (pattern), type_annotation
         # But extractor uses pattern logic.
@@ -67,8 +67,10 @@ class TestNodeProcessor(unittest.TestCase):
         # which looks for child with field name pattern or type=identifier
         
         def p1_child(name):
-            if name == 'pattern': return p1_patt
-            if name == 'type': return p1_t_ann
+            if name == 'pattern':
+                return p1_patt
+            if name == 'type':
+                return p1_t_ann
             return None
         p1_node.child_by_field_name.side_effect = p1_child
 
@@ -77,8 +79,10 @@ class TestNodeProcessor(unittest.TestCase):
         
         node = self.create_mock_node("function_declaration", children=[name_node, params_node], prev_sibling=comment_node)
         def node_child(name):
-            if name == 'name': return name_node
-            if name == 'parameters': return params_node
+            if name == 'name':
+                return name_node
+            if name == 'parameters':
+                return params_node
             return None
         node.child_by_field_name.side_effect = node_child
         
@@ -113,7 +117,8 @@ class TestNodeProcessor(unittest.TestCase):
         
         node = self.create_mock_node("method_definition", children=[method_name], parent=class_decl)
         def node_child(field_name):
-            if field_name == 'name': return method_name
+            if field_name == 'name':
+                return method_name
             return None
         node.child_by_field_name.side_effect = node_child
         
@@ -127,7 +132,8 @@ class TestNodeProcessor(unittest.TestCase):
         static_mod = self.create_mock_node("static", text="static")
         node_static = self.create_mock_node("method_definition", children=[static_mod, method_name], parent=class_decl)
         def node_static_child(field_name):
-            if field_name == 'name': return method_name
+            if field_name == 'name':
+                return method_name
             return None
         node_static.child_by_field_name.side_effect = node_static_child
         
@@ -140,7 +146,8 @@ class TestNodeProcessor(unittest.TestCase):
         ctor_name.field_name = "name"
         node_ctor = self.create_mock_node("method_definition", children=[ctor_name], parent=class_decl)
         def ctor_child(field_name):
-            if field_name == 'name': return ctor_name
+            if field_name == 'name':
+                return ctor_name
             return None
         node_ctor.child_by_field_name.side_effect = ctor_child
         
@@ -153,7 +160,8 @@ class TestNodeProcessor(unittest.TestCase):
         name_p.field_name = "name"
         node_p = self.create_mock_node("method_definition", children=[name_p])
         def node_p_child(field_name):
-            if field_name == 'name': return name_p
+            if field_name == 'name':
+                return name_p
             return None
         node_p.child_by_field_name.side_effect = node_p_child
         
@@ -165,7 +173,8 @@ class TestNodeProcessor(unittest.TestCase):
         mod = self.create_mock_node("accessibility_modifier", text="private")
         node_mod = self.create_mock_node("method_definition", children=[mod, name])
         def node_mod_child(field_name):
-            if field_name == 'name': return name
+            if field_name == 'name':
+                return name
             return None
         node_mod.child_by_field_name.side_effect = node_mod_child
         
@@ -188,7 +197,8 @@ class TestNodeProcessor(unittest.TestCase):
         
         node = self.create_mock_node("method_definition", children=[async_kw, name])
         def node_child(field_name):
-            if field_name == 'name': return name
+            if field_name == 'name':
+                return name
             return None
         node.child_by_field_name.side_effect = node_child
         
@@ -202,8 +212,10 @@ class TestNodeProcessor(unittest.TestCase):
         ret_type.field_name = "return_type"
         node_prom = self.create_mock_node("method_definition", children=[name, ret_type])
         def node_prom_child(field_name):
-            if field_name == 'name': return name
-            if field_name == 'return_type': return ret_type
+            if field_name == 'name':
+                return name
+            if field_name == 'return_type':
+                return ret_type
             return None
         node_prom.child_by_field_name.side_effect = node_prom_child
         
@@ -223,8 +235,10 @@ class TestNodeProcessor(unittest.TestCase):
         
         p_node = self.create_mock_node("required_parameter", children=[p_pattern, p_type])
         def p_child(field_name):
-            if field_name == 'pattern': return p_pattern
-            if field_name == 'type': return p_type
+            if field_name == 'pattern':
+                return p_pattern
+            if field_name == 'type':
+                return p_type
             return None
         p_node.child_by_field_name.side_effect = p_child
         
@@ -235,8 +249,10 @@ class TestNodeProcessor(unittest.TestCase):
         name.field_name = "name"
         node = self.create_mock_node("function_declaration", children=[name, params_node])
         def node_child(field_name):
-            if field_name == 'name': return name
-            if field_name == 'parameters': return params_node
+            if field_name == 'name':
+                return name
+            if field_name == 'parameters':
+                return params_node
             return None
         node.child_by_field_name.side_effect = node_child
         
@@ -252,7 +268,8 @@ class TestNodeProcessor(unittest.TestCase):
         
         p_node = self.create_mock_node("required_parameter", children=[p_pattern])
         def p_child(field_name):
-            if field_name == 'pattern': return p_pattern
+            if field_name == 'pattern':
+                return p_pattern
             return None
         p_node.child_by_field_name.side_effect = p_child
         
@@ -263,8 +280,10 @@ class TestNodeProcessor(unittest.TestCase):
         name.field_name = "name"
         node = self.create_mock_node("function_declaration", children=[name, params_node])
         def node_child(field_name):
-            if field_name == 'name': return name
-            if field_name == 'parameters': return params_node
+            if field_name == 'name':
+                return name
+            if field_name == 'parameters':
+                return params_node
             return None
         node.child_by_field_name.side_effect = node_child
         
@@ -289,8 +308,10 @@ class TestNodeProcessor(unittest.TestCase):
         
         p1_node = self.create_mock_node("required_parameter", children=[p1_pattern, p1_type])
         def p1_child(field_name):
-            if field_name == 'pattern': return p1_pattern
-            if field_name == 'type': return p1_type
+            if field_name == 'pattern':
+                return p1_pattern
+            if field_name == 'type':
+                return p1_type
             return None
         p1_node.child_by_field_name.side_effect = p1_child
         
@@ -299,9 +320,12 @@ class TestNodeProcessor(unittest.TestCase):
         
         node = self.create_mock_node("function_declaration", children=[name, params_node, ret_type])
         def node_child(field_name):
-            if field_name == 'name': return name
-            if field_name == 'parameters': return params_node
-            if field_name == 'return_type': return ret_type
+            if field_name == 'name':
+                return name
+            if field_name == 'parameters':
+                return params_node
+            if field_name == 'return_type':
+                return ret_type
             return None
         node.child_by_field_name.side_effect = node_child
         
@@ -355,7 +379,8 @@ class TestNodeProcessor(unittest.TestCase):
         name.field_name = "name"
         node = self.create_mock_node("function_declaration", children=[deco, name])
         def node_child(field_name):
-            if field_name == 'name': return name
+            if field_name == 'name':
+                return name
             return None
         node.child_by_field_name.side_effect = node_child
         

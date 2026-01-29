@@ -199,8 +199,10 @@ def extract_features(
   processed_ids = set()
   
   all_nodes = []
-  if 'func' in captures: all_nodes.extend(captures['func'])
-  if 'method' in captures: all_nodes.extend(captures['method'])
+  if 'func' in captures:
+      all_nodes.extend(captures['func'])
+  if 'method' in captures:
+      all_nodes.extend(captures['method'])
   
   # Sort by start byte to process in order? Not strictly necessary for output list
   

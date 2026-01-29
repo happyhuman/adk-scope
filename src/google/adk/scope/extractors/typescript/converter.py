@@ -399,7 +399,8 @@ class NodeProcessor:
                                  p_type = ""
                                  if prop_type_node:
                                      p_type = prop_type_node.text.decode('utf-8')
-                                     if p_type.startswith(':'): p_type = p_type[1:].strip()
+                                     if p_type.startswith(':'):
+                                         p_type = p_type[1:].strip()
                                  
                                  # Optionality check: check for '?' node or if literal text has ?
                                  # child text might be "hint?:"

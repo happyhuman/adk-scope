@@ -59,7 +59,7 @@ class TestExtractor(unittest.TestCase):
         mock_parser.parse.return_value = mock_tree
         
         # Mock Query and QueryCursor
-        with patch('google.adk.scope.extractors.typescript.extractor.Query') as MockQuery, \
+        with patch('google.adk.scope.extractors.typescript.extractor.Query'), \
              patch('google.adk.scope.extractors.typescript.extractor.QueryCursor') as MockCursor:
             
             mock_cursor_instance = MockCursor.return_value

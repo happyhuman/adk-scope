@@ -247,7 +247,8 @@ class TestNodeProcessor(unittest.TestCase):
         name_node.field_name = "name"
         node = self.create_mock_node("function_definition", children=[name_node])
         def node_child(name):
-            if name == 'name': return name_node
+            if name == 'name':
+                return name_node
             return None
         node.child_by_field_name.side_effect = node_child
         
@@ -444,11 +445,12 @@ class TestNodeProcessor(unittest.TestCase):
         p1_name = self.create_mock_node("identifier", text="a")
         p1 = self.create_mock_node("typed_parameter")
         def p1_child(name):
-            if name == 'name': return p1_name
+            if name == 'name':
+                return p1_name
             return None
         p1.child_by_field_name.side_effect = p1_child
         
-        p2_name = self.create_mock_node("identifier", text="b")
+        _p2_name = self.create_mock_node("identifier", text="b")
         p2 = self.create_mock_node("identifier", text="b") # simple identifier param
         
         params_node = self.create_mock_node("parameters", children=[p1, p2])
@@ -464,9 +466,12 @@ class TestNodeProcessor(unittest.TestCase):
         
         node = self.create_mock_node("function_definition", children=[name_node, params_node, body_node])
         def node_child(name):
-            if name == 'name': return name_node
-            if name == 'parameters': return params_node
-            if name == 'body': return body_node
+            if name == 'name':
+                return name_node
+            if name == 'parameters':
+                return params_node
+            if name == 'body':
+                return body_node
             return None
         node.child_by_field_name.side_effect = node_child
         
@@ -496,7 +501,8 @@ class TestNodeProcessor(unittest.TestCase):
         node = self.create_mock_node("function_definition", children=[async_node, name_node])
         
         def node_child(name):
-            if name == 'name': return name_node
+            if name == 'name':
+                return name_node
             return None
         node.child_by_field_name.side_effect = node_child
         
@@ -526,7 +532,8 @@ class TestNodeProcessor(unittest.TestCase):
          name_node.field_name = "name"
          node = self.create_mock_node("function_definition", children=[name_node])
          def node_child(name):
-             if name == 'name': return name_node
+             if name == 'name':
+                 return name_node
              return None
          node.child_by_field_name.side_effect = node_child
          
