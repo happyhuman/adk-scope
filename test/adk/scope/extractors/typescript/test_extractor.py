@@ -1,8 +1,7 @@
 
 import unittest
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, patch
 from pathlib import Path
-import sys
 import tempfile
 import shutil
 

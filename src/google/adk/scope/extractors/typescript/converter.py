@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple, Set
 
 from tree_sitter import Node
 
-from google.adk.scope.utils.strings import normalize_name, normalize_type_complex
+from google.adk.scope.utils.strings import normalize_name
 from google.adk.scope import features_pb2 as feature_pb2
 
 class NodeProcessor:
