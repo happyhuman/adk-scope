@@ -241,6 +241,12 @@ class NodeProcessor:
             parts = parts[2:]
             
         namespace = ".".join(parts)
+        
+        # If namespace is empty (file is directly in src/google/adk), use the filename as namespace
+        # UNLESS it is __init__.py (which truly belongs to the parent package)
+        if not namespace and file_path.name != "__init__.py":
+            namespace = file_path.stem
+            
         normalized = namespace.replace(".", "_")
         return namespace, normalized
 

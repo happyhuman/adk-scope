@@ -51,8 +51,20 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertEqual(result.original_name, "my_func")
         self.assertEqual(result.normalized_name, "my_func")
         self.assertEqual(result.type, Feature.Type.FUNCTION)
-        self.assertEqual(result.namespace, "") # Based on /repo/src/google/adk/agent.py (src and google.adk stripped)
+        self.assertEqual(result.namespace, "agent") # Based on /repo/src/google/adk/agent.py (src and google.adk stripped, fallback to agent)
         
+    def test_process_init_file(self):
+        # __init__.py should have empty namespace if at root of adk
+        init_path = Path("/repo/src/google/adk/__init__.py")
+        
+        name_node = self.create_mock_node("identifier", text="my_func")
+        name_node.field_name = "name"
+        node = self.create_mock_node("function_definition", children=[name_node], text="def my_func(): pass")
+        
+        result = self.processor.process(node, init_path, self.repo_root)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.namespace, "")
+
     def test_process_method(self):
         # Class definition -> Function definition
         class_name = self.create_mock_node("identifier", text="MyClass")
