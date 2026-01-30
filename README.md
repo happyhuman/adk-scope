@@ -38,10 +38,10 @@ The script requires a `--language` argument to specify the target language (`py`
 
 ```bash
 # For Python
-./extract.sh --language py --input-repo /path/to/adk-python output.json
+./extract.sh --language py --input-repo /path/to/adk-python output_dir
 
 # For TypeScript
-./extract.sh --language ts --input-repo /path/to/adk-js output.json
+./extract.sh --language ts --input-repo /path/to/adk-js output_dir
 ```
 
 ### CLI Arguments
@@ -52,18 +52,18 @@ The script requires a `--language` argument to specify the target language (`py`
 | `--input-file <path>` | Path to a single file to process. |
 | `--input-dir <path>` | Path to a directory containing files. |
 | `--input-repo <path>` | Path to the root of an ADK repository. Recursive search in `src` (Python) or `core/src` (TS). |
-| `output` | **Required.** Path to the output JSON file. |
+| `output` | **Required.** Path to the output directory. |
 
 **Examples:**
 
 ```bash
 # Process a single file
-./extract.sh --language python --input-file src/my_agent.py output.json
+./extract.sh --language python --input-file src/my_agent.py output_dir
 
 # Process a directory
 python3 -m google.adk.scope.extractors.python.extractor \
   --input-dir src/google/adk \
-  output.json
+  output_dir
 ```
 
 ## Development

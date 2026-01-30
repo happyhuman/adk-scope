@@ -67,7 +67,7 @@ class TestExtractMain(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
         self.root = Path(self.test_dir)
-        self.output_file = self.root / "output.json"
+        self.output_dir = self.root / "output"
 
         # Patches
         self.mock_args_patcher = patch(
@@ -107,7 +107,7 @@ class TestExtractMain(unittest.TestCase):
         mock_args.input_file = Path(input_file) if input_file else None
         mock_args.input_dir = Path(input_dir) if input_dir else None
         mock_args.input_repo = Path(input_repo) if input_repo else None
-        mock_args.output = output or str(self.output_file)
+        mock_args.output = Path(output) if output else self.output_dir
         self.mock_args.return_value = mock_args
 
     def test_unsupported_language(self):
@@ -133,7 +133,10 @@ class TestExtractMain(unittest.TestCase):
         extract.main()
 
         self.mock_py_extractor.extract_features.assert_called()
-        self.assertTrue(self.output_file.exists())
+        self.assertTrue(self.output_dir.exists())
+        self.assertEqual(len(list(self.output_dir.glob("py_*.json"))), 1)
+        self.assertEqual(len(list(self.output_dir.glob("py_*.yaml"))), 1)
+        self.assertEqual(len(list(self.output_dir.glob("py_*.txtpb"))), 1)
 
     def test_input_file_not_found(self):
         self.configure_args(lang="python", input_file="/non/existent.py")
@@ -153,7 +156,10 @@ class TestExtractMain(unittest.TestCase):
         extract.main()
 
         self.mock_py_extractor.find_files.assert_called_with(d, recursive=False)
-        self.assertTrue(self.output_file.exists())
+        self.assertTrue(self.output_dir.exists())
+        self.assertEqual(len(list(self.output_dir.glob("py_*.json"))), 1)
+        self.assertEqual(len(list(self.output_dir.glob("py_*.yaml"))), 1)
+        self.assertEqual(len(list(self.output_dir.glob("py_*.txtpb"))), 1)
 
     def test_input_repo_mode(self):
         r = self.root
@@ -169,7 +175,10 @@ class TestExtractMain(unittest.TestCase):
         self.mock_py_extractor.find_files.assert_called_with(
             r / "src", recursive=True
         )
-        self.assertTrue(self.output_file.exists())
+        self.assertTrue(self.output_dir.exists())
+        self.assertEqual(len(list(self.output_dir.glob("py_*.json"))), 1)
+        self.assertEqual(len(list(self.output_dir.glob("py_*.yaml"))), 1)
+        self.assertEqual(len(list(self.output_dir.glob("py_*.txtpb"))), 1)
 
 
 if __name__ == "__main__":

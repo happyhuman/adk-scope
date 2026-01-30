@@ -12,7 +12,7 @@ class TestArgs(unittest.TestCase):
         mock_args = argparse.Namespace(
             language="py",
             input_repo=Path("/tmp/repo"),
-            output=Path("/tmp/out.json"),
+            output=Path("/tmp/out_dir"),
             input_file=None,
             input_dir=None,
         )
@@ -24,7 +24,7 @@ class TestArgs(unittest.TestCase):
         args = parse_args()
 
         self.assertEqual(args.input_repo, Path("/tmp/repo"))
-        self.assertEqual(args.output, Path("/tmp/out.json"))
+        self.assertEqual(args.output, Path("/tmp/out_dir"))
         # Should be normalized
         self.assertEqual(args.language, "python")
 
