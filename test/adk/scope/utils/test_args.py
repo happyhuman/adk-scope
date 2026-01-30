@@ -55,7 +55,7 @@ class TestArgs(unittest.TestCase):
             self.assertEqual(group_calls[2][0][0], "--input-repo")
 
             # Verify parser arguments (--language, output, --verbose)
-            # add_argument is called three times: '--language', 'output', '--verbose'
+            # add_argument called 3 times: '--language', 'output', '--verbose'
             parser_calls = mock_parser.add_argument.call_args_list
             self.assertEqual(len(parser_calls), 3)
 
