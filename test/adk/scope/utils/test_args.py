@@ -54,11 +54,10 @@ class TestArgs(unittest.TestCase):
             # --input-repo
             self.assertEqual(group_calls[2][0][0], "--input-repo")
 
-            # Verify parser arguments (--language and output)
-            # add_argument is called twice: once for '--language',
-            # once for 'output'
+            # Verify parser arguments (--language, output, --verbose)
+            # add_argument called 3 times: '--language', 'output', '--verbose'
             parser_calls = mock_parser.add_argument.call_args_list
-            self.assertEqual(len(parser_calls), 2)
+            self.assertEqual(len(parser_calls), 3)
 
             # Check first call (language)
             args, _ = parser_calls[0]
@@ -67,6 +66,10 @@ class TestArgs(unittest.TestCase):
             # Check second call (output)
             args, _ = parser_calls[1]
             self.assertEqual(args[0], "output")
+
+            # Check third call (verbose)
+            args, _ = parser_calls[2]
+            self.assertEqual(args[0], "--verbose")
 
 
 if __name__ == "__main__":

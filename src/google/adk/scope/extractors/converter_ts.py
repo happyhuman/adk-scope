@@ -2,6 +2,7 @@
 Converter to transform TypeScript Tree-sitter nodes into Feature objects.
 """
 
+import logging
 import re
 from pathlib import Path
 from typing import List, Optional, Tuple, Set
@@ -10,6 +11,8 @@ from tree_sitter import Node
 
 from google.adk.scope.utils.strings import normalize_name
 from google.adk.scope import features_pb2 as feature_pb2
+
+logger = logging.getLogger(__name__)
 
 
 class NodeProcessor:
@@ -44,12 +47,14 @@ class NodeProcessor:
         # 1. Identity
         original_name = self._extract_name(node)
         if not original_name:
+            # logger.debug("Skipping node without name")
             return None
 
         # Filter private methods & setters/getters
         # private keyword or #name (private fields)
         # get/set keywords
         if self._is_private_or_accessor(node, original_name):
+            logger.debug("Skipping private/accessor: %s", original_name)
             return None
 
         normalized_name = normalize_name(original_name)

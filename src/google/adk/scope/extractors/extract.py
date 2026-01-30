@@ -56,6 +56,10 @@ def main():
         parse_args()
     )  # language is already normalized to "python" or "typescript"
 
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logger.debug("Verbose logging enabled.")
+
     logger.info("Extractor - Language: %s", args.language)
     logger.info("Output will be saved to: %s", args.output)
 

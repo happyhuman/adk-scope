@@ -46,6 +46,13 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Path to the output file",
     )
+
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Enable verbose logging (DEBUG level).",
+    )
     args = parser.parse_args()
 
     # Normalize language argument
