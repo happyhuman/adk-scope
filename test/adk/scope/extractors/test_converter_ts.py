@@ -77,7 +77,9 @@ class TestNodeProcessor(unittest.TestCase):
         params_node = self.create_mock_node("parameters", children=[p1_node])
         params_node.field_name = "parameters"
         
-        node = self.create_mock_node("function_declaration", children=[name_node, params_node], prev_sibling=comment_node)
+        node = self.create_mock_node(
+            "function_declaration", children=[name_node, params_node], prev_sibling=comment_node
+        )
         def node_child(name):
             if name == 'name':
                 return name_node
@@ -404,7 +406,8 @@ class TestNodeProcessor(unittest.TestCase):
         func_node.parent = export_node
         
         def func_child(n):
-            if n == 'name': return name
+            if n == 'name':
+                return name
             return None
         func_node.child_by_field_name.side_effect = func_child
         
@@ -428,7 +431,8 @@ class TestNodeProcessor(unittest.TestCase):
         node = self.create_mock_node("method_definition", children=[mod, name])
         
         def child(n):
-            if n == 'name': return name
+            if n == 'name':
+                return name
             return None
         node.child_by_field_name.side_effect = child
         
@@ -446,7 +450,7 @@ class TestNodeProcessor(unittest.TestCase):
     def test_parameter_modes_rest(self):
         # rest_parameter: ...args
         p_name = self.create_mock_node("identifier", text="args")
-        p_pattern = self.create_mock_node("rest_pattern", children=[p_name]) # usually pattern is child
+
         # Actually rest_parameter usually has identifier as child directly or pattern?
         # Tree-sitter-ts: rest_parameter -> identifier
         # Code checks: pattern_node = child_by_field_name('pattern') OR identifier child

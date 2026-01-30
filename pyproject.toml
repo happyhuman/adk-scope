@@ -20,6 +20,7 @@ dependencies = [
     "pytest-cov",
 ]
 
+
 [tool.pytest.ini_options]
 pythonpath = [
     "src"
@@ -27,3 +28,9 @@ pythonpath = [
 testpaths = [
     "test"
 ]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+extend-select = ["E501"]

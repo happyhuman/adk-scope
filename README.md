@@ -93,7 +93,7 @@ ruff check .
 If you modify `proto/features.proto`, you need to regenerate the Python code:
 
 ```bash
-./generate_protos.sh
+./proto2py.sh
 ```
 
 ## Project Structure

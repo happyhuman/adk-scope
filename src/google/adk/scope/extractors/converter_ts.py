@@ -25,7 +25,8 @@ class NodeProcessor:
         # Node types we care about:
         # function_declaration: function foo() {}
         # method_definition: class X { foo() {} }
-        # constructor: class X { constructor() {} } -> usually method_definition with name 'constructor' in some grammars, or checks
+        # constructor: class X { constructor() {} } # usually method_definition with name 'constructor'
+        # in some grammars, or checks
         # In tree-sitter-typescript:
         # - function_declaration
         # - method_definition
@@ -415,11 +416,16 @@ class NodeProcessor:
 
             # Iterate pattern properties
             for child in pattern_node.children:
-                if child.type == 'shorthand_property_identifier_pattern' or child.type == 'shorthand_property_identifier':
+                if (
+                    child.type == 'shorthand_property_identifier_pattern'
+                    or child.type == 'shorthand_property_identifier'
+                ):
                     p_name = child.text.decode('utf-8')
                     # Look up type
                     p_type, p_opt = type_map.get(p_name, ("unknown", False))
-                    extracted_params.append(self._create_single_param(p_name, [p_type], p_opt or node.type == 'optional_parameter'))
+                    extracted_params.append(
+                        self._create_single_param(p_name, [p_type], p_opt or node.type == 'optional_parameter')
+                    )
                 elif child.type == 'pair_pattern':
                     # key: value -> alias
                     # value is the variable name (pattern)
@@ -434,7 +440,9 @@ class NodeProcessor:
                          
                          # Type lookup uses prop_name
                          p_type, p_opt = type_map.get(prop_name, ("unknown", False))
-                         extracted_params.append(self._create_single_param(var_name, [p_type], p_opt or node.type == 'optional_parameter'))
+                         extracted_params.append(
+                             self._create_single_param(var_name, [p_type], p_opt or node.type == 'optional_parameter')
+                         )
                 elif child.type == 'object_assignment_pattern':
                     # Destructuring with default value: { a = 1 }
                     left_node = child.child_by_field_name('left')

@@ -51,7 +51,8 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertEqual(result.original_name, "my_func")
         self.assertEqual(result.normalized_name, "my_func")
         self.assertEqual(result.type, Feature.Type.FUNCTION)
-        self.assertEqual(result.namespace, "agent") # Based on /repo/src/google/adk/agent.py (src and google.adk stripped, fallback to agent)
+        self.assertEqual(result.namespace, "agent") # Based on /repo/src/google/adk/agent.py
+        # (src and google.adk stripped, fallback to agent)
         
     def test_process_init_file(self):
         # __init__.py should have empty namespace if at root of adk
@@ -192,7 +193,9 @@ class TestNodeProcessor(unittest.TestCase):
         func_node = self.create_mock_node("function_definition", children=[func_name])
         # IMPORTANT: parent of func_node is decorated_def
         
-        decorated_def = self.create_mock_node("decorated_definition", children=[decorator_node, func_node], parent=class_def)
+        decorated_def = self.create_mock_node(
+            "decorated_definition", children=[decorator_node, func_node], parent=class_def
+        )
         func_node.parent = decorated_def
         
         def func_node_child(name):
@@ -457,7 +460,12 @@ class TestNodeProcessor(unittest.TestCase):
         params_node.field_name = "parameters"
 
         # Docstring
-        docstring_text = '"""My docstring.\n\n    Args:\n        a (str): Description for a.\n        b: Description for b.\n    """'
+        docstring_text = '''"""My docstring.
+
+    Args:
+        a (str): Description for a.
+        b: Description for b.
+    """'''
         string_node = self.create_mock_node("string", text=docstring_text)
         expr_stmt = self.create_mock_node("expression_statement", children=[string_node])
         
@@ -566,9 +574,12 @@ class TestNodeProcessor(unittest.TestCase):
             
             node = self.create_mock_node("function_definition", children=children)
             def node_child(name):
-                if name == 'name': return name_node
-                if name == 'body': return body_node
-                if name == 'parameters': return params_node
+                if name == 'name':
+                    return name_node
+                if name == 'body':
+                    return body_node
+                if name == 'parameters':
+                    return params_node
                 return None
             node.child_by_field_name.side_effect = node_child
             return self.processor.process(node, self.file_path, self.repo_root)
@@ -621,7 +632,8 @@ class TestNodeProcessor(unittest.TestCase):
         func_node.parent = decorated
         
         def func_child(name):
-             if name == 'name': return func_name
+             if name == 'name':
+                 return func_name
              return None
         func_node.child_by_field_name.side_effect = func_child
 
@@ -690,7 +702,7 @@ class TestNodeProcessor(unittest.TestCase):
 
     def test_filter_cls_parameter(self):
         # def func(cls): ...
-        p_name = self.create_mock_node("identifier", text="cls")
+
         p_node = self.create_mock_node("identifier") # simluating simple param
         # Actually `identifier` type param means text is the name
         p_node.text = b"cls"
@@ -702,8 +714,10 @@ class TestNodeProcessor(unittest.TestCase):
         func_name = self.create_mock_node("identifier", text="func")
         node = self.create_mock_node("function_definition", children=[params_node, func_name])
         def node_child(name):
-            if name == 'name': return func_name
-            if name == 'parameters': return params_node
+            if name == 'name':
+                return func_name
+            if name == 'parameters':
+                return params_node
             return None
         node.child_by_field_name.side_effect = node_child
         
@@ -724,8 +738,10 @@ class TestNodeProcessor(unittest.TestCase):
         name = self.create_mock_node("identifier", text="f")
         node = self.create_mock_node("function_definition", children=[name, body])
         def node_child(n):
-            if n == 'name': return name
-            if n == 'body': return body
+            if n == 'name':
+                return name
+            if n == 'body':
+                return body
             return None
         node.child_by_field_name.side_effect = node_child
         
