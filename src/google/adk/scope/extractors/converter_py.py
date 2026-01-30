@@ -328,6 +328,7 @@ class NodeProcessor:
         elif node.type == "typed_parameter":
             # (typed_parameter (identifier) (type))
             name_node = node.child_by_field_name("name") or node.children[0]
+            name = name_node.text.decode("utf-8")
             type_node = node.child_by_field_name("type")
             if type_node:
                 decoded_type = type_node.text.decode("utf-8")
