@@ -18,7 +18,9 @@ class TestArgs(unittest.TestCase):
         )
         mock_parse.return_value = mock_args
 
-        # Call the function (arguments are parsed from sys.argv by default, but we mocked parse_args)
+        # Call the function
+        # (arguments are parsed from sys.argv by default,
+        # but we mocked parse_args)
         args = parse_args()
 
         self.assertEqual(args.input_repo, Path("/tmp/repo"))
@@ -30,7 +32,8 @@ class TestArgs(unittest.TestCase):
         # Verify that the parser is set up with correct arguments
         with patch("argparse.ArgumentParser") as mock_parser_cls:
             mock_parser = mock_parser_cls.return_value
-            # We also need to mock the group returned by add_mutually_exclusive_group
+            # We also need to mock the group returned by
+            # add_mutually_exclusive_group
             mock_group = mock_parser.add_mutually_exclusive_group.return_value
 
             parse_args()
@@ -52,7 +55,8 @@ class TestArgs(unittest.TestCase):
             self.assertEqual(group_calls[2][0][0], "--input-repo")
 
             # Verify parser arguments (--language and output)
-            # add_argument is called twice: once for '--language', once for 'output'
+            # add_argument is called twice: once for '--language',
+            # once for 'output'
             parser_calls = mock_parser.add_argument.call_args_list
             self.assertEqual(len(parser_calls), 2)
 

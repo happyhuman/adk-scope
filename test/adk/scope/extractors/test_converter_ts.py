@@ -104,7 +104,8 @@ class TestNodeProcessor(unittest.TestCase):
         node.child_by_field_name.side_effect = node_child
 
         # We need to successfully call process
-        # We also need to mock _extract_member_of walking up (returns None -> member_of="")
+        # We also need to mock _extract_member_of walking up
+        # (returns None -> member_of="")
 
         result = self.processor.process(node, self.file_path, self.repo_root)
         self.assertIsNotNone(result)
@@ -268,7 +269,8 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertTrue(getattr(result, "async"))
 
         # Promise return type -> async
-        # (return_type (type_reference (identifier Promise) ...)) - simplified mock
+        # (return_type (type_reference (identifier Promise) ...))
+        # - simplified mock
         ret_type = self.create_mock_node(
             "type_annotation", text="Promise<void>"
         )
@@ -379,7 +381,8 @@ class TestNodeProcessor(unittest.TestCase):
 
     def test_complex_types_and_unwrapping(self):
         # Return type: Promise<string> -> STRING
-        # Param type: string | number -> FLOAT (mapped from INT/FLOAT, unique? actually normalized list)
+        # Param type: string | number -> FLOAT
+        # (mapped from INT/FLOAT, unique? actually normalized list)
 
         name = self.create_mock_node("identifier", text="f")
         name.field_name = "name"
@@ -434,7 +437,8 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertEqual(result.normalized_return_types, ["STRING"])
 
         # Verify param type union
-        # string -> STRING, number -> FLOAT/INT (usually FLOAT/INT logic maps number to both? or one?)
+        # string -> STRING, number -> FLOAT/INT
+        # (usually FLOAT/INT logic maps number to both? or one?)
         # _normalize_ts_type('number') -> ['FLOAT', 'INT']
         # _normalize_ts_type('string') -> ['STRING']
         # Combined -> STRING, FLOAT, INT
@@ -453,10 +457,12 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertEqual(ns, "foo.bar")
         self.assertEqual(norm, "foo_bar")
 
-        # Case 2: src/foo.ts -> foo (if file is in src) OR if file is in src/foo?
+        # Case 2: src/foo.ts -> foo (if file is in src)
+        # OR if file is in src/foo?
         # Logic: rel_path.parent.parts
         # src/foo.ts -> parent is src -> parts=['src'] -> mapped to empty?
-        # If parts=['src'] -> matches elif parts[0]=='src' -> parts=[] -> empty??
+        # If parts=['src'] -> matches elif parts[0]=='src' -> parts=[]
+        # -> empty??
         # Let's check logic:
         # if parts[0] == 'src': parts = parts[1:]
         # So src/foo.ts -> ns=""?
@@ -527,7 +533,8 @@ class TestNodeProcessor(unittest.TestCase):
 
         # 2. JSDoc params with types and defaults
         # @param {string} [p1=default] Desc
-        # NOTE: _parse_jsdoc_params expects CLEANED JSDoc (no /** or * prefixes), just the content
+        # NOTE: _parse_jsdoc_params expects CLEANED JSDoc
+        # (no /** or * prefixes), just the content
         jsdoc_detailed = "@param {string} [p1=def] Desc"
         parsed = self.processor._parse_jsdoc_params(jsdoc_detailed)
         self.assertEqual(parsed["p1"], "Desc")
@@ -571,9 +578,11 @@ class TestNodeProcessor(unittest.TestCase):
         # rest_parameter: ...args
         p_name = self.create_mock_node("identifier", text="args")
 
-        # Actually rest_parameter usually has identifier as child directly or pattern?
+        # Actually rest_parameter usually has identifier as child directly
+        # or pattern?
         # Tree-sitter-ts: rest_parameter -> identifier
-        # Code checks: pattern_node = child_by_field_name('pattern') OR identifier child
+        # Code checks: pattern_node = child_by_field_name('pattern')
+        # OR identifier child
 
         rest_node = self.create_mock_node("rest_parameter", children=[p_name])
         # Force identifier child check fallback
@@ -677,14 +686,19 @@ class TestNodeProcessor(unittest.TestCase):
             lambda n: iface_name if n == "name" else None
         )
 
-        # Interface method might be method_signature in TS, but strict extractor checks for method_definition?
+        # Interface method might be method_signature in TS,
+        # but strict extractor checks for method_definition?
         # Extractor code:
-        # if node.type not in ('function_declaration', 'method_definition'): return None
+        # if node.type not in ('function_declaration', 'method_definition'):
+        # return None
         # So interface methods (usually method_signature) are skipped!
-        # Wait, let's verify if 'method_definition' appears in interfaces in tree-sitter.
+        # Wait, let's verify if 'method_definition' appears in interfaces
+        # in tree-sitter.
         # Usually it is 'method_signature'.
-        # If so, this test confirms we DON'T extract them, which is likely intended or current behavior.
-        # Let's mock a method_definition inside interface just to check strict member_of logic.
+        # If so, this test confirms we DON'T extract them,
+        # which is likely intended or current behavior.
+        # Let's mock a method_definition inside interface just to check
+        # strict member_of logic.
 
         method_node_i = self.create_mock_node(
             "method_definition", children=[method_name], parent=iface
@@ -704,8 +718,10 @@ class TestNodeProcessor(unittest.TestCase):
 
         p = Path("/outside/file.ts")
         # Ensure relative_to raises ValueError
-        # (It does in real Path, but we are using real Path objects in test with fake strings?)
-        # Yes, Path("/outside/file.ts").relative_to(Path("/repo")) raises ValueError
+        # (It does in real Path, but we are using real Path objects
+        # in test with fake strings?)
+        # Yes, Path("/outside/file.ts").relative_to(Path("/repo"))
+        # raises ValueError
 
         ns, norm = self.processor._extract_namespace(p, self.repo_root)
         # Should catch ValueError and fallback to file path logic
@@ -717,9 +733,11 @@ class TestNodeProcessor(unittest.TestCase):
         # parts = list(rel_path.parent.parts)
         # If it returns empty or something, namespace is empty.
 
-        # On Mac/Linux: Path("/outside/file.ts").parent.parts -> ('/', 'outside')
+        # On Mac/Linux: Path("/outside/file.ts").parent.parts
+        # -> ('/', 'outside')
         # parts = ['/', 'outside']
-        # filtered: ['outside'] (assuming / is filtered or not in list of strings if purely component based?)
+        # filtered: ['outside'] (assuming / is filtered or not in list
+        # of strings if purely component based?)
         # pathlib parts includes root.
         # Logic: parts = [p for p in parts if p and p not in ('.', '..')]
         # '/' is in parts[0] usually.
@@ -728,7 +746,8 @@ class TestNodeProcessor(unittest.TestCase):
 
         # Let's see what happens.
         # If parts=['/', 'outside'], extracted ns="/.outside" or similar?
-        # This confirms fallback behavior exists, exact value might vary by OS path separator handling in test env.
+        # This confirms fallback behavior exists, exact value might vary
+        # by OS path separator handling in test env.
         # Using a simpler relative-ish path that fails relative_to?
         # Or just assert it doesn't crash.
         self.assertIsNotNone(ns)

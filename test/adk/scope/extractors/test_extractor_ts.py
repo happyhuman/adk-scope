@@ -5,7 +5,8 @@ import tempfile
 import shutil
 
 # Import the module under test
-# We need to make sure the src path is in PYTHONPATH which is handled by test runner usually
+# We need to make sure the src path is in PYTHONPATH which is handled
+# by test runner usually
 from google.adk.scope.extractors import extractor_ts as extractor
 from google.adk.scope import features_pb2
 

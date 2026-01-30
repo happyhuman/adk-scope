@@ -64,7 +64,8 @@ class TestExtractor(unittest.TestCase):
         mock_node.type = "function_definition"
         mock_cursor_instance.captures.return_value = {"func": [mock_node]}
 
-        # We need to mock NodeProcessor.process to avoid complex node mocking if we just want to test flow
+        # We need to mock NodeProcessor.process to avoid complex node
+        # mocking if we just want to test flow
         with patch(
             "google.adk.scope.extractors.extractor_py.NodeProcessor"
         ) as MockProcessor:
