@@ -9,13 +9,12 @@ package google.adk.meta;
 enum ParamType {
   OBJECT = 0;
   STRING = 1;
-  INT = 2;
-  FLOAT = 3;
-  BOOLEAN = 4;
-  LIST = 6;
-  MAP = 7;
-  SET = 8;
-  UNKNOWN = 9;
+  NUMBER = 2;
+  BOOLEAN = 3;
+  LIST = 4;
+  MAP = 5;
+  SET = 6;
+  UNKNOWN = 7;
 }
 
 
@@ -29,7 +28,7 @@ message Param {
   repeated string original_types = 3;   // Raw types from source (e.g., "long", "int64").
   repeated ParamType normalized_types = 4; // Canonical types (e.g., "INT").
   
-  string description = 5;           // Explanation of the parameter.
+  optional string description = 5;  // Explanation of the parameter.
   bool is_optional = 6;             // True if nullable or has a default.
 }
 
@@ -40,14 +39,14 @@ message Feature {
   // --- 1. IDENTITY & GROUPING ---
   string original_name = 1;         // Name in source (e.g., "runAsync").
   string normalized_name = 2;       // Key for Matcher (e.g., "run_async").
-  string description = 3;           // Feature Description.
+  optional string description = 3;  // Feature Description (comment or docstring)
   
   string member_of = 4;             // Original Class/Struct name (e.g., "LoopAgent").
   string normalized_member_of = 5;   // Key for Matcher (e.g., "loop_agent").
 
   // --- 2. CONTEXT ---
-  enum Maturity { STABLE = 0; EXPERIMENTAL = 1; BETA = 2; DEPRECATED = 3; }
-  Maturity maturity = 6;
+  enum Maturity { EXPERIMENTAL = 0; BETA = 1; DEPRECATED = 2; }
+  optional Maturity maturity = 6;
 
   enum Type { FUNCTION = 0; INSTANCE_METHOD = 1; CLASS_METHOD = 2; CONSTRUCTOR = 3; }
   Type type = 7;
@@ -62,7 +61,7 @@ message Feature {
   repeated string original_return_types = 12;   // Raw returns (e.g., "Future<String>").
   repeated string normalized_return_types = 13; // Canonical returns (e.g., "STRING").
   
-  bool blocking = 14;                           // false iff it is an async call. 
+  optional bool async = 14;                     // true if it is an async call. 
 }
 
 /**

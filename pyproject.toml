@@ -20,6 +20,7 @@ dependencies = [
     "pytest-cov",
 ]
 
+
 [tool.pytest.ini_options]
 pythonpath = [
     "src"
@@ -27,3 +28,10 @@ pythonpath = [
 testpaths = [
     "test"
 ]
+
+[tool.ruff]
+exclude = ["features_pb2.py"]
+line-length = 80
+
+[tool.ruff.lint]
+extend-select = ["E501"]
