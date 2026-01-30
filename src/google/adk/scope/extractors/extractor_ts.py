@@ -35,6 +35,7 @@ def find_files(
     for path in iterator:
         # Exclude .d.ts
         if path.name.endswith(".d.ts"):
+            logger.debug("Skipping .d.ts file: %s", path)
             continue
 
         # Exclude node_modules, etc.
@@ -43,6 +44,7 @@ def find_files(
             for part in path.parts
             if part not in (".", "..")
         ):
+            logger.debug("Skipping hidden/node_modules path: %s", path)
             continue
 
         yield path
@@ -83,6 +85,8 @@ def extract_features(
     if "method" in captures:
         all_nodes.extend(captures["method"])
 
+    logger.debug("Found %d potential nodes in %s", len(all_nodes), file_path)
+
     for node in all_nodes:
         if node.id in processed_ids:
             continue
@@ -91,6 +95,7 @@ def extract_features(
         feature = processor.process(node, file_path, repo_root)
         if feature:
             features.append(feature)
+            logger.debug("Extracted feature: %s", feature.original_name)
 
     return features
 

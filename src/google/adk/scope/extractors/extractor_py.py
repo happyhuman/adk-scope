@@ -46,12 +46,14 @@ def find_files(
 
     for path in iterator:
         if path.name in excluded_files:
+            logger.debug("Skipping excluded file: %s", path)
             continue
         # Also exclude hidden files or directories starting with .
         if any(
             part.startswith(".") and part not in (".", "..")
             for part in path.parts
         ):
+            logger.debug("Skipping hidden path: %s", path)
             continue
 
         yield path
@@ -95,11 +97,21 @@ def extract_features(
     captures = cursor.captures(root_node)
 
     # captures is a dict {capture_name: [nodes]}
-    for node in captures.get("func", []):
+    func_nodes = captures.get("func", [])
+    logger.debug(
+        "Found %d potential function nodes in %s", len(func_nodes), file_path
+    )
+
+    for node in func_nodes:
         # The node is a function_definition
         feature = processor.process(node, file_path, repo_root)
         if feature:
             features.append(feature)
+            logger.debug("Extracted feature: %s", feature.original_name)
+        else:
+            # Maybe log why it was skipped if process returns None
+            # But process usually logs internal reasons if we add logs there
+            pass
 
     return features
 

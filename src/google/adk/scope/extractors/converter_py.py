@@ -2,6 +2,7 @@
 Converter to transform Tree-sitter nodes into Feature objects.
 """
 
+import logging
 from pathlib import Path
 from typing import List, Optional, Tuple, Set
 
@@ -12,6 +13,8 @@ from google.adk.scope.utils.strings import (
     normalize_type_complex,
 )
 from google.adk.scope import features_pb2 as feature_pb2
+
+logger = logging.getLogger(__name__)
 
 
 class NodeProcessor:
@@ -33,6 +36,7 @@ class NodeProcessor:
         # 1. Identity
         original_name = self._extract_name(node)
         if not original_name:
+            # logger.debug("Skipping node without name")
             return None
 
         # Filter private methods
@@ -40,6 +44,7 @@ class NodeProcessor:
             "__init__",
             "__call__",
         ):
+            logger.debug("Skipping private method: %s", original_name)
             return None
 
         normalized_name = normalize_name(original_name)
@@ -305,6 +310,7 @@ class NodeProcessor:
                 if p:
                     # Filter 'self' and 'cls'
                     if p.original_name in ("self", "cls"):
+
                         continue
 
                     # Add description if available
