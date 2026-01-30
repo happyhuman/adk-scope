@@ -11,4 +11,4 @@ export PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH}"
 
 # Run the python extractor wrapper
 # Pass all arguments to the python script
-python3 -m google.adk.scope.extractors.python.extractor "$@"
+python3 -m google.adk.scope.extractors.extractor_py "$@"
