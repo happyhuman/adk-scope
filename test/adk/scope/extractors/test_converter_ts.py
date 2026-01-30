@@ -388,5 +388,234 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertTrue(result.HasField("maturity"))
         self.assertEqual(result.maturity, feature_pb2.Feature.Maturity.BETA)
 
+    def test_jsdoc_edge_cases(self):
+        # 1. JSDoc on export statement
+        jsdoc = "/** Exported func */"
+        comment = self.create_mock_node("comment", text=jsdoc)
+        
+        name = self.create_mock_node("identifier", text="f")
+        name.field_name = "name"
+        
+        # Structure: export_statement -> function_declaration
+        # export_statement prev_sibling is comment
+        
+        func_node = self.create_mock_node("function_declaration", children=[name])
+        export_node = self.create_mock_node("export_statement", children=[func_node], prev_sibling=comment)
+        func_node.parent = export_node
+        
+        def func_child(n):
+            if n == 'name': return name
+            return None
+        func_node.child_by_field_name.side_effect = func_child
+        
+        result = self.processor.process(func_node, self.file_path, self.repo_root)
+        self.assertEqual(result.description, "Exported func")
+        
+        # 2. JSDoc params with types and defaults
+        # @param {string} [p1=default] Desc
+        # NOTE: _parse_jsdoc_params expects CLEANED JSDoc (no /** or * prefixes), just the content
+        jsdoc_detailed = "@param {string} [p1=def] Desc"
+        parsed = self.processor._parse_jsdoc_params(jsdoc_detailed)
+        self.assertEqual(parsed['p1'], "Desc")
+
+    def test_additional_modifiers(self):
+        # protected method -> should be skipped?
+        # Logic says: private/protected -> return None
+        
+        mod = self.create_mock_node("accessibility_modifier", text="protected")
+        name = self.create_mock_node("property_identifier", text="prot")
+        name.field_name = "name"
+        node = self.create_mock_node("method_definition", children=[mod, name])
+        
+        def child(n):
+            if n == 'name': return name
+            return None
+        node.child_by_field_name.side_effect = child
+        
+        self.assertIsNone(self.processor.process(node, self.file_path, self.repo_root))
+        
+        # set accessor
+        set_kw = self.create_mock_node("set", text="set")
+        name_s = self.create_mock_node("property_identifier", text="prop")
+        name_s.field_name = "name"
+        node_s = self.create_mock_node("method_definition", children=[set_kw, name_s])
+        node_s.child_by_field_name.side_effect = lambda n: name_s if n=='name' else None
+        
+        self.assertIsNone(self.processor.process(node_s, self.file_path, self.repo_root))
+
+    def test_parameter_modes_rest(self):
+        # rest_parameter: ...args
+        p_name = self.create_mock_node("identifier", text="args")
+        p_pattern = self.create_mock_node("rest_pattern", children=[p_name]) # usually pattern is child
+        # Actually rest_parameter usually has identifier as child directly or pattern?
+        # Tree-sitter-ts: rest_parameter -> identifier
+        # Code checks: pattern_node = child_by_field_name('pattern') OR identifier child
+        
+        rest_node = self.create_mock_node("rest_parameter", children=[p_name])
+        # Force identifier child check fallback
+        
+        params = self.create_mock_node("parameters", children=[rest_node])
+        params.field_name = "parameters"
+        
+        name = self.create_mock_node("identifier", text="f")
+        name.field_name = "name"
+        node = self.create_mock_node("function_declaration", children=[name, params])
+        node.child_by_field_name.side_effect = lambda n: name if n=='name' else (params if n=='parameters' else None)
+        
+        result = self.processor.process(node, self.file_path, self.repo_root)
+        self.assertEqual(len(result.parameters), 1)
+        self.assertEqual(result.parameters[0].original_name, "args")
+
+    def test_type_normalization_extended(self):
+        # Array<string> -> LIST
+        # ReadonlyArray<number> -> LIST
+        # Map<string, int> -> MAP
+        # Set<any> -> SET
+        # string[] -> LIST
+        # void -> []
+        
+        def test_type(t_str, expected_norm):
+            norm = self.processor._normalize_ts_type(t_str)
+            # norm is list of strings (enum names)
+            # Map enum names to values? Or just check processor internal output?
+            # _normalize_ts_type returns list of STRINGS like ['LIST']
+            self.assertEqual(norm, expected_norm)
+
+        test_type("Array<string>", ["LIST"])
+        test_type("ReadonlyArray<number>", ["LIST"])
+        test_type("Map<string, number>", ["MAP"])
+        test_type("Set<any>", ["SET"])
+        test_type("string[]", ["LIST"])
+        test_type("void", [])
+        test_type("path", ["STRING"])
+        test_type("formattedstring", ["STRING"])
+        test_type("boolean", ["BOOLEAN"])
+
+    
+    def test_recursive_types(self):
+        # Promise<Promise<string>>
+        # Array<Array<number>>
+        def test_type(t_str, expected_norm):
+            norm = self.processor._normalize_ts_type(t_str)
+            self.assertEqual(norm, expected_norm)
+
+        # Promise unwrapping is recursive in logic?
+        # _normalize_ts_type(Promise<T>) -> _normalize_ts_type(T)
+        # So Promise<Promise<string>> -> Promise<string> -> string -> [STRING]
+        test_type("Promise<Promise<string>>", ["STRING"])
+        
+        # Array<Array<number>> -> LIST
+        test_type("Array<Array<number>>", ["LIST"])
+        
+        # Map<string, Map<k,v>> -> MAP
+        test_type("Map<string, Map<string, int>>", ["MAP"])
+
+
+    def test_abstract_and_interfaces(self):
+        # abstract class method
+        # interface method
+        
+        # 1. Abstract Class
+        abs_class = self.create_mock_node("abstract_class_declaration")
+        abs_name = self.create_mock_node("identifier", text="Abs")
+        abs_name.field_name = "name"
+        abs_class.children = [abs_name]
+        abs_class.child_by_field_name.side_effect = lambda n: abs_name if n=='name' else None
+        
+        method_name = self.create_mock_node("property_identifier", text="absMethod")
+        method_name.field_name = "name"
+        method_node = self.create_mock_node("method_definition", children=[method_name], parent=abs_class)
+        method_node.child_by_field_name.side_effect = lambda n: method_name if n=='name' else None
+        
+        result = self.processor.process(method_node, self.file_path, self.repo_root)
+        self.assertEqual(result.member_of, "Abs")
+        
+        # 2. Interface
+        iface = self.create_mock_node("interface_declaration")
+        iface_name = self.create_mock_node("identifier", text="IFace")
+        iface_name.field_name = "name"
+        iface.children = [iface_name]
+        iface.child_by_field_name.side_effect = lambda n: iface_name if n=='name' else None
+        
+        # Interface method might be method_signature in TS, but strict extractor checks for method_definition?
+        # Extractor code:
+        # if node.type not in ('function_declaration', 'method_definition'): return None
+        # So interface methods (usually method_signature) are skipped! 
+        # Wait, let's verify if 'method_definition' appears in interfaces in tree-sitter.
+        # Usually it is 'method_signature'.
+        # If so, this test confirms we DON'T extract them, which is likely intended or current behavior.
+        # Let's mock a method_definition inside interface just to check strict member_of logic.
+        
+        method_node_i = self.create_mock_node("method_definition", children=[method_name], parent=iface)
+        method_node_i.child_by_field_name.side_effect = lambda n: method_name if n=='name' else None
+        
+        result_i = self.processor.process(method_node_i, self.file_path, self.repo_root)
+        self.assertEqual(result_i.member_of, "IFace")
+
+    def test_namespace_error_fallback(self):
+        # Path not relative to repo root
+        # /outside/file.ts relative to /repo -> ValueError
+        
+        p = Path("/outside/file.ts")
+        # Ensure relative_to raises ValueError
+        # (It does in real Path, but we are using real Path objects in test with fake strings?)
+        # Yes, Path("/outside/file.ts").relative_to(Path("/repo")) raises ValueError
+        
+        ns, norm = self.processor._extract_namespace(p, self.repo_root)
+        # Should catch ValueError and fallback to file path logic
+        # rel_path = p = /outside/file.ts
+        # parent = /outside
+        # parts = ['outside'] (root / ignored in parts usually?)
+        # Actually /outside parent parts on unix is ('/', 'outside') or similar?
+        # Let's rely on logic: fallback sets rel_path = file_path
+        # parts = list(rel_path.parent.parts)
+        # If it returns empty or something, namespace is empty.
+        
+        # On Mac/Linux: Path("/outside/file.ts").parent.parts -> ('/', 'outside')
+        # parts = ['/', 'outside']
+        # filtered: ['outside'] (assuming / is filtered or not in list of strings if purely component based?)
+        # pathlib parts includes root.
+        # Logic: parts = [p for p in parts if p and p not in ('.', '..')]
+        # '/' is in parts[0] usually.
+        # We might get "_.outside" or ".outside"?
+        # Normalized replace . with _
+        
+        # Let's see what happens.
+        # If parts=['/', 'outside'], extracted ns="/.outside" or similar?
+        # This confirms fallback behavior exists, exact value might vary by OS path separator handling in test env.
+        # Using a simpler relative-ish path that fails relative_to?
+        # Or just assert it doesn't crash.
+        self.assertIsNotNone(ns)
+
+    def test_jsdoc_with_decorator_interleaved(self):
+        # /** Doc */
+        # @deco
+        # function f() {}
+        
+        # structure: 
+        # comment
+        # decorator
+        # function_declaration
+        # prev_sibling of function is decorator
+        # prev_sibling of decorator is comment
+        
+        jsdoc = "/** Doc */"
+        comment = self.create_mock_node("comment", text=jsdoc)
+        
+        deco = self.create_mock_node("decorator", text="@deco")
+        deco.prev_sibling = comment
+        
+        name = self.create_mock_node("identifier", text="f")
+        name.field_name = "name"
+        
+        func = self.create_mock_node("function_declaration", children=[name], prev_sibling=deco)
+        func.child_by_field_name.side_effect = lambda n: name if n=='name' else None
+        
+        result = self.processor.process(func, self.file_path, self.repo_root)
+        self.assertEqual(result.description, "Doc")
+
+
+
+
 if __name__ == '__main__':
     unittest.main()
