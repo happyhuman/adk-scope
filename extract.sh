@@ -1,5 +1,5 @@
 #!/bin/bash
-# extract_typescript.sh - Wrapper script to extract features from a TypeScript file, directory, or ADK repo.
+# extract.sh - Wrapper script to extract features from a Python or TypeScript repo.
 
 set -e
 
@@ -11,4 +11,4 @@ export PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH}"
 
 # Run the python extractor wrapper
 # Pass all arguments to the python script
-python3 -m google.adk.scope.extractors.extractor_ts "$@"
+python3 -m google.adk.scope.extractors.extract "$@"

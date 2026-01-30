@@ -9,14 +9,22 @@ class TestArgs(unittest.TestCase):
     @patch('argparse.ArgumentParser.parse_args')
     def test_parse_args(self, mock_parse):
         # Setup mock return value
-        mock_args = argparse.Namespace(adk_repo=Path('/tmp/repo'), output=Path('/tmp/out.json'))
+        mock_args = argparse.Namespace(
+            language='py',
+            input_repo=Path('/tmp/repo'), 
+            output=Path('/tmp/out.json'),
+            input_file=None,
+            input_dir=None
+        )
         mock_parse.return_value = mock_args
         
         # Call the function (arguments are parsed from sys.argv by default, but we mocked parse_args)
         args = parse_args()
         
-        self.assertEqual(args.adk_repo, Path('/tmp/repo'))
+        self.assertEqual(args.input_repo, Path('/tmp/repo'))
         self.assertEqual(args.output, Path('/tmp/out.json'))
+        # Should be normalized
+        self.assertEqual(args.language, 'python')
         
     def test_arg_definitions(self):
         # Verify that the parser is set up with correct arguments
@@ -41,11 +49,18 @@ class TestArgs(unittest.TestCase):
             # --input-repo
             self.assertEqual(group_calls[2][0][0], '--input-repo')
 
-            # Verify parser arguments (output)
-            # add_argument is called once for 'output' on the parser itself
+            # Verify parser arguments (--language and output)
+            # add_argument is called twice: once for '--language', once for 'output'
             parser_calls = mock_parser.add_argument.call_args_list
-            self.assertEqual(len(parser_calls), 1) 
-            self.assertEqual(parser_calls[0][0][0], 'output')
+            self.assertEqual(len(parser_calls), 2)
+            
+            # Check first call (language)
+            args, _ = parser_calls[0]
+            self.assertEqual(args[0], '--language')
+            
+            # Check second call (output)
+            args, _ = parser_calls[1]
+            self.assertEqual(args[0], 'output') 
 
 if __name__ == '__main__':
     unittest.main()

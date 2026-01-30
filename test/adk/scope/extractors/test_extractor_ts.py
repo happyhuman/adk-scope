@@ -18,7 +18,7 @@ class TestExtractor(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.test_dir)
 
-    def test_find_ts_files(self):
+    def test_find_files(self):
         # Structure:
         # /src/a.ts
         # /src/b.ts
@@ -37,12 +37,12 @@ class TestExtractor(unittest.TestCase):
         (src_dir / "d.d.ts").touch()
         (src_dir / "node_modules" / "e.ts").touch()
         
-        files = list(extractor.find_ts_files(src_dir, recursive=True))
+        files = list(extractor.find_files(src_dir, recursive=True))
         filenames = sorted([f.name for f in files])
         self.assertEqual(filenames, ["a.ts", "b.ts", "c.ts"])
         
         # Non-recursive
-        files_nr = list(extractor.find_ts_files(src_dir, recursive=False))
+        files_nr = list(extractor.find_files(src_dir, recursive=False))
         filenames_nr = sorted([f.name for f in files_nr])
         self.assertEqual(filenames_nr, ["a.ts", "b.ts"])
 
@@ -79,62 +79,6 @@ class TestExtractor(unittest.TestCase):
                 self.assertEqual(features[0].original_name, "foo")
                 mock_parser.parse.assert_called_once()
                 mock_proc_instance.process.assert_called_with(mock_node, p, self.test_dir)
-
-    @patch('google.adk.scope.extractors.extractor_ts.parse_args')
-    @patch('google.adk.scope.extractors.extractor_ts.extract_features')
-    @patch('builtins.open', new_callable=unittest.mock.mock_open)
-    def test_main_input_file(self, mock_file, mock_extract, mock_args):
-        # Setup args
-        args = Mock()
-        args.input_file = self.test_dir / "test.ts"
-        args.input_dir = None
-        args.input_repo = None
-        args.output = str(self.test_dir / "output.json")
-        mock_args.return_value = args
-        
-        # Setup file existence
-        (self.test_dir / "test.ts").touch()
-        
-        # Mock features
-        mock_extract.return_value = [features_pb2.Feature(original_name="foo")]
-        
-        extractor.main()
-        
-        # Verify extract called
-        mock_extract.assert_called()
-        # Verify output written
-        mock_file.assert_called_with(str(self.test_dir / "output.json"), "w")
-        handle = mock_file()
-        handle.write.assert_called()
-
-    @patch('google.adk.scope.extractors.extractor_ts.parse_args')
-    @patch('google.adk.scope.extractors.extractor_ts.extract_features')
-    @patch('builtins.open', new_callable=unittest.mock.mock_open)
-    def test_main_input_repo(self, mock_file, mock_extract, mock_args):
-        # Setup args
-        args = Mock()
-        args.input_file = None
-        args.input_dir = None
-        args.input_repo = self.test_dir / "repo"
-        args.output = str(self.test_dir / "output.json")
-        mock_args.return_value = args
-        
-        # Setup repo structure
-        repo = self.test_dir / "repo"
-        repo.mkdir()
-        (repo / "core" / "src").mkdir(parents=True)
-        (repo / "core" / "src" / "a.ts").touch()
-        
-        # Mock features
-        mock_extract.return_value = []
-        
-        extractor.main()
-        
-        # Should search in repo/core/src
-        # extract_features called for a.ts
-        mock_extract.assert_called()
-        args_call = mock_extract.call_args[0]
-        self.assertEqual(args_call[0].name, "a.ts")
 
 if __name__ == '__main__':
     unittest.main()

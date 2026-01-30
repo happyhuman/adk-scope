@@ -31,30 +31,34 @@ This project uses `pyproject.toml` for dependency management.
 
 You can run the extractor using the provided shell script or directly via Python.
 
-### wrapper Script
+### Wrapper Script
 
-The `extract_python.sh` wrapper helps set up the `PYTHONPATH` correctly.
+The `extract.sh` wrapper helps set up the `PYTHONPATH` correctly.
+The script requires a `--language` argument to specify the target language (`py` or `ts`).
 
 ```bash
-./extract_python.sh --input-repo /path/to/adk-python output.json
+# For Python
+./extract.sh --language py --input-repo /path/to/adk-python output.json
+
+# For TypeScript
+./extract.sh --language ts --input-repo /path/to/adk-js output.json
 ```
 
 ### CLI Arguments
 
 | Argument | Description |
 | :--- | :--- |
-| `--input-file <path>` | Path to a single Python file to process. |
-| `--input-dir <path>` | Path to a directory containing Python files. |
-| `--input-repo <path>` | Path to the root of an ADK repository. Extracts ADK version from `src/google/adk/version.py`. |
+| `--language <lang>` | **Required.** Language to extract (`python` or `typescript`). |
+| `--input-file <path>` | Path to a single file to process. |
+| `--input-dir <path>` | Path to a directory containing files. |
+| `--input-repo <path>` | Path to the root of an ADK repository. Recursive search in `src` (Python) or `core/src` (TS). |
 | `output` | **Required.** Path to the output JSON file. |
 
 **Examples:**
 
 ```bash
 # Process a single file
-python3 -m google.adk.scope.extractors.python.extractor \
-  --input-file src/my_agent.py \
-  output.json
+./extract.sh --language python --input-file src/my_agent.py output.json
 
 # Process a directory
 python3 -m google.adk.scope.extractors.python.extractor \
