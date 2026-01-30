@@ -2,7 +2,10 @@ import logging
 import sys
 from pathlib import Path
 
-from google.protobuf.json_format import MessageToJson
+import datetime
+import yaml
+from google.protobuf import text_format
+from google.protobuf.json_format import MessageToJson, MessageToDict
 from google.adk.scope.features_pb2 import FeatureRegistry
 from google.adk.scope.utils.args import parse_args
 from google.adk.scope.extractors import extractor_py, extractor_ts
@@ -11,6 +14,12 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+_JSON_INDENT = 2
+_JSON_OUTPUT = True
+_YAML_OUTPUT = True
+_PROTO_OUTPUT = True
+
 
 EXTRACTORS = {
     "python": extractor_py,
@@ -161,19 +170,57 @@ def main():
         features=all_features,
     )
 
+    output_dir = args.output
     try:
-        with open(args.output, "w") as f:
-            f.write(
-                MessageToJson(
-                    registry,
-                    indent=2,
-                    preserving_proto_field_name=True,
-                    always_print_fields_with_no_presence=True,
-                )
-            )
-        logger.info("Successfully wrote output to %s", args.output)
+        output_dir.mkdir(parents=True, exist_ok=True)
     except IOError as e:
-        logger.error("Failed to write output: %s", e)
+        logger.error("Failed to create output directory %s: %s", output_dir, e)
+        sys.exit(1)
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    prefix = "py" if args.language in {"python", "py"} else "ts"
+    base_filename = f"{prefix}_{timestamp}"
+
+    if _JSON_OUTPUT:
+        # 1. JSON Output
+        json_path = output_dir / f"{base_filename}.json"
+        try:
+            json_content = MessageToJson(
+                registry,
+                indent=_JSON_INDENT,
+                preserving_proto_field_name=True,
+                always_print_fields_with_no_presence=True,
+            )
+            json_path.write_text(json_content)
+            logger.info("Generated JSON: %s", json_path)
+        except IOError as e:
+            logger.error("Failed to write JSON output: %s", e)
+
+    if _YAML_OUTPUT:
+        # 2. YAML Output
+        yaml_path = output_dir / f"{base_filename}.yaml"
+        try:
+            dict_content = MessageToDict(
+                registry,
+                preserving_proto_field_name=True,
+                always_print_fields_with_no_presence=True,
+                use_integers_for_enums=False,
+            )
+            with open(yaml_path, "w") as f:
+                yaml.dump(dict_content, f, sort_keys=False)
+            logger.info("Generated YAML: %s", yaml_path)
+        except IOError as e:
+            logger.error("Failed to write YAML output: %s", e)
+
+    if _PROTO_OUTPUT:
+        # 3. TextProto Output
+        txtpb_path = output_dir / f"{base_filename}.txtpb"
+        try:
+            txtpb_content = text_format.MessageToString(registry)
+            txtpb_path.write_text(txtpb_content)
+            logger.info("Generated TextProto: %s", txtpb_path)
+        except IOError as e:
+            logger.error("Failed to write TextProto output: %s", e)
 
 
 if __name__ == "__main__":

@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "output",
         type=Path,
-        help="Path to the output file",
+        help="Directory path for the output files",
     )
 
     parser.add_argument(
