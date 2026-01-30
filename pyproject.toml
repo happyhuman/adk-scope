@@ -18,6 +18,7 @@ dependencies = [
     "ruff",
     "pytest",
     "pytest-cov",
+    "pyyaml",
 ]
 
 
