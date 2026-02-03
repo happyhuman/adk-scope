@@ -19,6 +19,9 @@ dependencies = [
     "pytest",
     "pytest-cov",
     "pyyaml",
+    "scipy",
+    "numpy",
+    "jellyfish",
 ]
 
 
@@ -29,6 +32,7 @@ pythonpath = [
 testpaths = [
     "test"
 ]
+
 
 [tool.ruff]
 exclude = ["features_pb2.py"]
