@@ -37,6 +37,14 @@ REPO_SRC_SUBDIRS = {
 }
 
 
+def get_config(repo_root: Path) -> dict:
+    config_path = repo_root / "config.yaml"
+    if not config_path.exists():
+        return {}
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
+
+
 def get_repo_root(input_path: Path, language: str) -> Path | None:
     markers = REPO_ROOT_MARKERS.get(language, [])
     for parent in input_path.parents:
@@ -139,11 +147,21 @@ def main():
 
         logger.info("Mode: Repo extraction: %s", input_path)
 
+        config = get_config(input_path)
+        exclude_list = set(config.get(args.language, {}).get("exclude", []))
+
         search_dir = get_search_dir(input_path, args.language)
         repo_root = input_path
 
         # Type checkers might complain about assignment if not specific list
         files = list(extractor_module.find_files(search_dir, recursive=True))
+
+        if exclude_list:
+            files = [
+                f
+                for f in files
+                if not any(part in exclude_list for part in f.parts)
+            ]
 
         logger.info(
             "Found %d %s files in %s.", len(files), args.language, search_dir
