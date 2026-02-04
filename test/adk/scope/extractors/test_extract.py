@@ -85,11 +85,24 @@ class TestExtractMain(unittest.TestCase):
         self.mock_extractors["python"] = self.mock_py_extractor
         self.mock_extractors["typescript"] = self.mock_ts_extractor
 
+        # Enforce Output Generation
+        self.mock_json_patcher = patch(
+            "google.adk.scope.extractors.extract._JSON_OUTPUT", True
+        )
+        self.mock_json_patcher.start()
+
+        self.mock_yaml_patcher = patch(
+            "google.adk.scope.extractors.extract._YAML_OUTPUT", True
+        )
+        self.mock_yaml_patcher.start()
+
         # FeatureRegistry mock/patch ?
         # Actual FeatureRegistry is fine if we mock return of extract_features
         # But we write to file using MessageToJson
 
     def tearDown(self):
+        self.mock_yaml_patcher.stop()
+        self.mock_json_patcher.stop()
         self.mock_args_patcher.stop()
         self.mock_extractors_patcher.stop()
         shutil.rmtree(self.test_dir)
