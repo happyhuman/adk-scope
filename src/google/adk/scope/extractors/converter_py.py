@@ -310,7 +310,6 @@ class NodeProcessor:
                 if p:
                     # Filter 'self' and 'cls'
                     if p.original_name in ("self", "cls"):
-
                         continue
 
                     # Add description if available

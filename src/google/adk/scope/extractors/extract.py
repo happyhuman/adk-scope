@@ -16,8 +16,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 _JSON_INDENT = 2
-_JSON_OUTPUT = True
-_YAML_OUTPUT = True
+_JSON_OUTPUT = False
+_YAML_OUTPUT = False
 _PROTO_OUTPUT = True
 
 
