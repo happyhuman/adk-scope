@@ -109,6 +109,21 @@ def match_features(
     return matches
 
 
+def get_language_code(language_name: str) -> str:
+    """Returns a short code for the language."""
+    name = language_name.upper()
+    if name == "PYTHON":
+        return "py"
+    elif name == "TYPESCRIPT":
+        return "ts"
+    elif name == "JAVA":
+        return "java"
+    elif name == "GOLANG":
+        return "go"
+    else:
+        return name[:2].lower()
+
+
 def match_registries(
     base_registry: features_pb2.FeatureRegistry,
     target_registry: features_pb2.FeatureRegistry,
@@ -128,9 +143,12 @@ def match_registries(
         key = f.normalized_namespace or f.namespace or "Unknown Module"
         features_target[key].append(f)
 
-    all_modules = sorted(
-        set(features_base.keys()) | set(features_target.keys())
-    )
+    if report_type == "directional":
+        all_modules = sorted(features_base.keys())
+    else:
+        all_modules = sorted(
+            set(features_base.keys()) | set(features_target.keys())
+        )
 
     # Global Stats using Set logic for Jaccard/F1
     # We will accumulate counts as we process modules
@@ -266,12 +284,20 @@ def match_registries(
     master_lines.append("")
 
     master_lines.append("## Module Summary")
-    master_lines.append(
-        "| Module | Features (Base) | Score | Status | Details |"
-    )
-    master_lines.append("|---|---|---|---|---|")
+    header = "| Module | Features (Base) | Score | Status | Details |"
+    divider = "|---|---|---|---|---|"
+    if report_type == "symmetric":
+        header = "| ADK | Module | Features (Base) | Score | Status | Details |"
+        divider = "|---|---|---|---|---|---|"
+    
+    master_lines.append(header)
+    master_lines.append(divider)
 
     module_files = {}
+    module_rows = []
+
+    base_code = get_language_code(base_registry.language)
+    target_code = get_language_code(target_registry.language)
 
     for module in all_modules:
         base_list = features_base[module]
@@ -316,17 +342,30 @@ def match_registries(
         module_safe_name = module.replace(".", "_")
         module_filename = f"{module_safe_name}.md"
 
+        # Determine ADK Value (Symmetric Only)
+        row_content = ""
+        if report_type == "symmetric":
+             adk_parts = []
+             if mod_base_count > 0:
+                 adk_parts.append(base_code)
+             if mod_target_count > 0:
+                 adk_parts.append(target_code)
+             adk_value = ", ".join(adk_parts)
+             
+             row_content = (
+                f"| {adk_value} | `{module}` | {mod_base_count} | {mod_score:.2%} | "
+                f"{status_icon} | "
+                f"[View Details]({{modules_dir}}/{module_filename}) |"
+            )
+        else:
+            row_content = (
+                f"| `{module}` | {mod_base_count} | {mod_score:.2%} | "
+                f"{status_icon} | "
+                f"[View Details]({{modules_dir}}/{module_filename}) |"
+            )
+
         # Add to Master
-        # Note: We assume the caller places module files in a subdirectory
-        # named 'modules' or similar.
-        # Let's standardize on `{stem}_modules/` where stem is output filename.
-        # But here we don't know the stem.
-        # We will use a placeholder `{modules_dir}` and replace it in main.
-        master_lines.append(
-            f"| `{module}` | {mod_base_count} | {mod_score:.2%} | "
-            f"{status_icon} | "
-            f"[View Details]({{modules_dir}}/{module_filename}) |"
-        )
+        module_rows.append((mod_score, row_content))
 
         if report_type == "symmetric":
             mod_total_features = (
@@ -451,6 +490,11 @@ def match_registries(
             # Directional reports usually ignore target exclusives.
             # We flag missing-in-target features only.
         module_files[module_filename] = "\n".join(mod_lines).strip()
+
+    # Sort modules by score descending
+    module_rows.sort(key=lambda x: x[0], reverse=True)
+    for _, row in module_rows:
+        master_lines.append(row)
 
     # Calculate Global Score
     if report_type == "symmetric":

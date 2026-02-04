@@ -2,7 +2,7 @@ python:
   exclude:
     - examples
     - a2a
-    # - agents
+    - agents
     - apps
     - artifacts
     - auth
@@ -16,11 +16,9 @@ python:
     - flows
     - memory
     - models
-    - optimization
     - planners
     - platform
     - plugins
-    - runners
     - sessions
     - telemetry
     - tools
@@ -28,7 +26,7 @@ python:
 
 typescript:
   exclude:
-    # - agents
+    - agents
     - artifacts
     - auth
     - code_executors
