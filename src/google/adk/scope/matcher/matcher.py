@@ -42,7 +42,7 @@ def get_type_display_name(f: features_pb2.Feature) -> str:
 
 
 def get_type_priority(f: features_pb2.Feature) -> int:
-    """Returns priority for sorting: constructor < function < method < unknown."""
+    """Returns priority: constructor < function < method < unknown."""
     type_name = get_type_display_name(f)
     priorities = {
         "constructor": 0,
@@ -101,7 +101,9 @@ def match_features(
         f for i, f in enumerate(base_features) if i not in matched_base_indices
     ]
     target_features[:] = [
-        f for i, f in enumerate(target_features) if i not in matched_target_indices
+        f
+        for i, f in enumerate(target_features)
+        if i not in matched_target_indices
     ]
 
     return matches
@@ -126,7 +128,9 @@ def match_registries(
         key = f.normalized_namespace or f.namespace or "Unknown Module"
         features_target[key].append(f)
 
-    all_modules = sorted(set(features_base.keys()) | set(features_target.keys()))
+    all_modules = sorted(
+        set(features_base.keys()) | set(features_target.keys())
+    )
 
     # Global Stats using Set logic for Jaccard/F1
     # We will accumulate counts as we process modules
@@ -141,8 +145,12 @@ def match_registries(
     
     if report_type == "raw":
         # Raw CSV Report
-        # Columns: base_namespace,base_member_of,base_name,target_namespace,target_member_of,target_name,type,score
-        csv_header = "base_namespace,base_member_of,base_name,target_namespace,target_member_of,target_name,type,score"
+        # Columns: base_namespace,base_member_of,base_name,target_namespace,
+        #          target_member_of,target_name,type,score
+        csv_header = (
+            "base_namespace,base_member_of,base_name,target_namespace,"
+            "target_member_of,target_name,type,score"
+        )
         csv_lines = [csv_header]
         
         def get_feature_cols(f: features_pb2.Feature) -> tuple[str, str, str]:
@@ -165,7 +173,8 @@ def match_registries(
             if s is None:
                 return ""
             if ',' in s or '"' in s or '\n' in s:
-                return f'"{s.replace("\"", "\"\"")}"'
+                escaped = s.replace('"', '""')
+                return f'"{escaped}"'
             return s
 
         for module in all_modules:
@@ -189,8 +198,10 @@ def match_registries(
                 f_type = get_type_display_name(f_base)
                 
                 line = (
-                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
-                    f"{escape_csv(t_ns)},{escape_csv(t_mem)},{escape_csv(t_name)},"
+                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},"
+                    f"{escape_csv(b_name)},"
+                    f"{escape_csv(t_ns)},{escape_csv(t_mem)},"
+                    f"{escape_csv(t_name)},"
                     f"{escape_csv(f_type)},{score:.4f}"
                 )
                 csv_lines.append(line)
@@ -201,8 +212,10 @@ def match_registries(
                 f_type = get_type_display_name(f_base)
                 
                 line = (
-                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
-                    f"{escape_csv(t_ns)},{escape_csv(t_mem)},{escape_csv(t_name)},"
+                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},"
+                    f"{escape_csv(b_name)},"
+                    f"{escape_csv(t_ns)},{escape_csv(t_mem)},"
+                    f"{escape_csv(t_name)},"
                     f"{escape_csv(f_type)},{score:.4f}"
                 )
                 csv_lines.append(line)
@@ -212,7 +225,8 @@ def match_registries(
                 f_type = get_type_display_name(f_base)
                 
                 line = (
-                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
+                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},"
+                    f"{escape_csv(b_name)},"
                     f",,,"
                     f"{escape_csv(f_type)},0.0000"
                 )
@@ -224,7 +238,8 @@ def match_registries(
                 
                 line = (
                     f",,,"
-                    f"{escape_csv(t_ns)},{escape_csv(t_mem)},{escape_csv(t_name)},"
+                    f"{escape_csv(t_ns)},{escape_csv(t_mem)},"
+                    f"{escape_csv(t_name)},"
                     f"{escape_csv(f_type)},0.0000"
                 )
                 csv_lines.append(line)
@@ -238,8 +253,12 @@ def match_registries(
     master_lines.append(f"# Feature Matching Report: {title_suffix}")
     master_lines.append(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     master_lines.append("")
-    master_lines.append(f"**Base:** {base_registry.language} ({base_registry.version})")
-    master_lines.append(f"**Target:** {target_registry.language} ({target_registry.version})")
+    master_lines.append(
+        f"**Base:** {base_registry.language} ({base_registry.version})"
+    )
+    master_lines.append(
+        f"**Target:** {target_registry.language} ({target_registry.version})"
+    )
     
     # Placeholder for Global Score (calculated at end)
     global_score_idx = len(master_lines)
@@ -247,7 +266,9 @@ def match_registries(
     master_lines.append("")
 
     master_lines.append("## Module Summary")
-    master_lines.append("| Module | Features (Base) | Score | Status | Details |")
+    master_lines.append(
+        "| Module | Features (Base) | Score | Status | Details |"
+    )
     master_lines.append("|---|---|---|---|---|")
 
     module_files = {}
@@ -279,7 +300,9 @@ def match_registries(
                 mod_solid_count / union_size if union_size > 0 else 1.0
             )
         else:  # directional
-            precision = stats.calculate_precision(mod_solid_count, mod_target_count)
+            precision = stats.calculate_precision(
+                mod_solid_count, mod_target_count
+            )
             recall = stats.calculate_recall(mod_solid_count, mod_base_count)
             mod_score = stats.calculate_f1(precision, recall)
         
@@ -294,16 +317,23 @@ def match_registries(
         module_filename = f"{module_safe_name}.md"
 
         # Add to Master
-        # Note: We assume the caller places module files in a subdirectory named 'modules' or similar.
+        # Note: We assume the caller places module files in a subdirectory
+        # named 'modules' or similar.
         # Let's standardize on `{stem}_modules/` where stem is output filename.
         # But here we don't know the stem.
         # We will use a placeholder `{modules_dir}` and replace it in main.
         master_lines.append(
-            f"| `{module}` | {mod_base_count} | {mod_score:.2%} | {status_icon} | "
+            f"| `{module}` | {mod_base_count} | {mod_score:.2%} | "
+            f"{status_icon} | "
             f"[View Details]({{modules_dir}}/{module_filename}) |"
         )
 
-        mod_total_features = mod_base_count + mod_target_count - mod_solid_count if report_type == "symmetric" else mod_base_count
+        if report_type == "symmetric":
+            mod_total_features = (
+                mod_base_count + mod_target_count - mod_solid_count
+            )
+        else:
+            mod_total_features = mod_base_count
 
         # Generate Module Content
         mod_lines = []
@@ -324,12 +354,7 @@ def match_registries(
             )
         else:
              # For symmetric, we usually just have the score (Jaccard).
-             # We can make it a table too for consistency if desired, but user asked "Similar to the main markdown... do that for the module markdown files too".
-             # Main markdown has "Global Jaccard Index: X%" for symmetric (not table).
-             # Wait, main markdown ONLY uses table for directional in my previous edit.
-             # "Global Jaccard Index: 25.00%" (one line) vs Table for F1/Precision/Recall.
-             # User said: "Similar to the main markdown... do that for the module markdown files too".
-             # So for directional module reports, I should use a table.
+             # We can make it a table too for consistency if desired.
              pass
 
         mod_lines.append("")
@@ -337,8 +362,12 @@ def match_registries(
         mod_lines.append("")
 
         # Sort matches by type
-        solid_matches.sort(key=lambda x: (get_type_priority(x[0]), x[0].normalized_name))
-        potential_matches.sort(key=lambda x: (get_type_priority(x[0]), x[0].normalized_name))
+        solid_matches.sort(
+            key=lambda x: (get_type_priority(x[0]), x[0].normalized_name)
+        )
+        potential_matches.sort(
+            key=lambda x: (get_type_priority(x[0]), x[0].normalized_name)
+        )
 
         if report_type == "symmetric":
             if solid_matches:
@@ -419,21 +448,26 @@ def match_registries(
                     mod_lines.append(f"| `{format_feature(f_base)}` |")
                 mod_lines.append("")
                 
-            # Directional usually ignores target exclusives, but we can list them if needed.
-            # For strict directional (Base -> Target), we flag missing in target.
-            
+            # Directional reports usually ignore target exclusives.
+            # We flag missing-in-target features only.
         module_files[module_filename] = "\n".join(mod_lines).strip()
 
     # Calculate Global Score
     if report_type == "symmetric":
-        union_size = total_base_features + total_target_features - total_solid_matches
+        union_size = (
+            total_base_features + total_target_features - total_solid_matches
+        )
         parity_score = (
             total_solid_matches / union_size if union_size > 0 else 1.0
         )
         global_stats = f"**Global Jaccard Index:** {parity_score:.2%}"
     else:
-        precision = stats.calculate_precision(total_solid_matches, total_target_features)
-        recall = stats.calculate_recall(total_solid_matches, total_base_features)
+        precision = stats.calculate_precision(
+            total_solid_matches, total_target_features
+        )
+        recall = stats.calculate_recall(
+            total_solid_matches, total_base_features
+        )
         parity_score = stats.calculate_f1(precision, recall)
         
         global_stats = (
@@ -507,7 +541,10 @@ def main():
             output_path.write_text(result.master_content)
             print(f"Successfully wrote raw match report to {output_path}")
         except Exception as e:
-            print(f"Error writing raw report to {output_path}: {e}", file=sys.stderr)
+            print(
+                f"Error writing raw report to {output_path}: {e}",
+                file=sys.stderr,
+            )
             sys.exit(1)
         return
 
@@ -520,7 +557,7 @@ def main():
         # Write module files
         for filename, content in result.module_files.items():
             # Replace placeholder for master report link
-            # The link is relative from module dir (subplot) to master report (parent dir)
+            # The link is relative from module dir to master report
             # So name is enough.
             final_content = content.replace("{master_report}", output_path.name)
             (modules_dir / filename).write_text(final_content)
@@ -528,7 +565,9 @@ def main():
         # Replace placeholder in Master Report
         # We assume master report is in parent of modules_dir
         # modules_dir relative to master report is just the dir name
-        master_report = result.master_content.replace("{modules_dir}", modules_dir_name)
+        master_report = result.master_content.replace(
+            "{modules_dir}", modules_dir_name
+        )
     else:
         master_report = result.master_content.replace("{modules_dir}", ".")
 

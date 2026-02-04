@@ -256,7 +256,10 @@ class TestMatcher(unittest.TestCase):
         result = matcher.match_registries(base, target, 0.9, report_type="raw")
         csv_content = result.master_content
         
-        expected_header = "base_namespace,base_member_of,base_name,target_namespace,target_member_of,target_name,type,score"
+        expected_header = (
+            "base_namespace,base_member_of,base_name,target_namespace,"
+            "target_member_of,target_name,type,score"
+        )
         self.assertIn(expected_header, csv_content)
         
         # Check for solid match line
