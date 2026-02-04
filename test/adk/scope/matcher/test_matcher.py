@@ -147,79 +147,124 @@ class TestMatcher(unittest.TestCase):
         target_registry.features.extend([f2, f_near_target])
 
         # Test Symmetric Report
-        report_sym = matcher.match_registries(
+        result_sym = matcher.match_registries(
             base_registry, target_registry, 0.9, report_type="symmetric"
         )
-        self.assertIn("# Cross-Language Feature Parity Report", report_sym)
-        self.assertIn("**Base:** Python (1.0.0)", report_sym)
-        self.assertIn("**Target:** TypeScript (2.0.0)", report_sym)
-        self.assertIn(
-            "**Feature Parity Score (Jaccard Index):** 25.0%", report_sym
-        )
+        report_sym = result_sym.master_content
         
-        self.assertIn("## Module 'google.adk.events'", report_sym)
+        # 1. Verify Master Report Structure
+        self.assertIn("# Feature Matching Report: Symmetric", report_sym)
+        self.assertIn("**Global Jaccard Index:** 25.00%", report_sym)
+        self.assertIn("## Module Summary", report_sym)
+        
+        # Check for module entry in master summary
+        self.assertIn("| `n_same` |", report_sym)
+        self.assertIn("[View Details]({modules_dir}/n_same.md)", report_sym)
+
+        # 2. Verify Module Content
+        self.assertIn("n_same.md", result_sym.module_files)
+        module_content = result_sym.module_files["n_same.md"]
+        
+        self.assertIn("# Module: `n_same`", module_content)
+        self.assertIn("**Features:** 3", module_content)
         
         # Solid Matches
-        self.assertIn("### ✅ Solid Matches", report_sym)
+        self.assertIn("### ✅ Solid Matches", module_content)
         self.assertIn(
             "| Type | Base Feature | Target Feature | Similarity Score |",
-            report_sym
+            module_content
         )
         self.assertIn(
-            "| Method | `BaseClass.fSameBase` | `TargetClass.fSameTarget` |",
-            report_sym
+            "| method | `BaseClass.fSameBase` | `TargetClass.fSameTarget` |",
+            module_content
         )
         
-        # Near Misses
-        self.assertIn("### ⚠️ Near Misses", report_sym)
+        # Potential Matches (formerly Near Misses)
+        self.assertIn("### ⚠️ Potential Matches", module_content)
         self.assertIn(
             "| Type | Base Feature | Closest Target Candidate | Similarity |",
-            report_sym
+            module_content
         )
         self.assertIn(
-            "| Method | `base_member.base_name` | "
+            "| method | `base_member.base_name` | "
             "`target_member.target_name` |",
-            report_sym,
+            module_content,
         )
 
-        # Unmatched / Gaps
-        self.assertIn("### ❌ Unmatched Features", report_sym)
-        self.assertIn("| `totally_diff` | Target |", report_sym)
+        # Unmatched / Gaps (in 'stuff' module)
+        self.assertIn("stuff.md", result_sym.module_files)
+        stuff_content = result_sym.module_files["stuff.md"]
+        self.assertIn("### ❌ Unmatched Features", stuff_content)
+        self.assertIn("| `totally_diff` | Target |", stuff_content)
+        self.assertIn("**Features:** 1", stuff_content)
 
         # Test Directional Report
-        report_dir = matcher.match_registries(
+        result_dir = matcher.match_registries(
             base_registry, target_registry, 0.9, report_type="directional"
         )
-        self.assertIn("**Feature Parity Score (F1 Score):** 40.0%", report_dir)
-
-        self.assertIn("## Module 'google.adk.events'", report_dir)
+        report_dir = result_dir.master_content
+        
+        self.assertIn("| **Global F1 Score** | 40.00% |", report_dir)
+        self.assertIn("n_same.md", result_dir.module_files)
+        
+        mod_dir_content = result_dir.module_files["n_same.md"]
 
         # Solid Matches
-        self.assertIn("### ✅ Matched Features", report_dir)
+        self.assertIn("### ✅ Matched Features", mod_dir_content)
         self.assertIn(
             "| Type | Base Feature | Target Feature | Similarity Score |",
-            report_dir
+            mod_dir_content
         )
         self.assertIn(
-            "| Method | `BaseClass.fSameBase` | `TargetClass.fSameTarget` |",
-            report_dir
+            "| method | `BaseClass.fSameBase` | `TargetClass.fSameTarget` |",
+            mod_dir_content
         )
 
-        # Near Misses
-        self.assertIn("### ⚠️ Inconsistencies (Near Misses)", report_dir)
+        # Potential Matches
+        self.assertIn("### ⚠️ Potential Matches", mod_dir_content)
         self.assertIn(
             "| Type | Base Feature | Closest Target Candidate | Similarity |",
-            report_dir
+            mod_dir_content
         )
         self.assertIn(
-            "| Method | `base_member.base_name` | "
+            "| method | `base_member.base_name` | "
             "`target_member.target_name` |",
-            report_dir,
+            mod_dir_content,
         )
+
         
-        # Unmatched / Gaps
-        self.assertIn("### ❌ Missing in Target (Base Exclusive)", report_dir)
-        self.assertIn("| `totally_diff` |", report_dir)
+        # Unmatched / Gaps (in 'stuff' module)
+        self.assertIn("stuff.md", result_dir.module_files)
+        stuff_dir_content = result_dir.module_files["stuff.md"]
+        self.assertIn("### ❌ Missing in Target", stuff_dir_content)
+        self.assertIn("| `totally_diff` |", stuff_dir_content)
+
+    def test_match_registries_raw(self):
+        f1 = features_pb2.Feature(
+            original_name="f_same",
+            normalized_name="f_same",
+            normalized_namespace="pkg",
+            member_of="MyClass",
+            normalized_member_of="myclass",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+        base = features_pb2.FeatureRegistry(language="Python", version="1")
+        base.features.append(f1)
+        target = features_pb2.FeatureRegistry(language="TS", version="2")
+        target.features.append(f1)
+        
+        result = matcher.match_registries(base, target, 0.9, report_type="raw")
+        csv_content = result.master_content
+        
+        expected_header = "base_namespace,base_member_of,base_name,target_namespace,target_member_of,target_name,type,score"
+        self.assertIn(expected_header, csv_content)
+        
+        # Check for solid match line
+        # f1 has: ns=pkg, mem=MyClass, name=f_same
+        # Match should have same values for base and target
+        expected_line = "pkg,MyClass,f_same,pkg,MyClass,f_same,function,1.0000"
+        self.assertIn(expected_line, csv_content)
+        self.assertFalse(result.module_files)
 
 if __name__ == "__main__":
     unittest.main()

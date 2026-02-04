@@ -11,4 +11,4 @@ export PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH}"
 
 # Run the python matcher
 # Pass all arguments to the python script
-python3 -m google.adk.scope.matcher.matcher "$@"
+python3 "${SCRIPT_DIR}/src/google/adk/scope/matcher/matcher.py" "$@"

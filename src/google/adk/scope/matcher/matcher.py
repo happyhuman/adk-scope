@@ -1,22 +1,60 @@
 import argparse
+import dataclasses
 import sys
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Tuple, Dict
+from collections import defaultdict
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 from google.protobuf import text_format
 from google.adk.scope import features_pb2
 from google.adk.scope.utils.similarity import SimilarityScorer
+from google.adk.scope.utils import stats
+
+
+_NEAR_MISS_THRESHOLD = 0.15
+
+
+@dataclasses.dataclass
+class MatchResult:
+    master_content: str
+    module_files: Dict[str, str]  # filename -> content
+
+
+def format_feature(f: features_pb2.Feature) -> str:
+    name = f.original_name or f.normalized_name
+    member = f.member_of
+    if member and member.lower() != "null":
+        return f"{member}.{name}"
+    return name
+
+
+def get_type_display_name(f: features_pb2.Feature) -> str:
+    FeatureType = features_pb2.Feature.Type
+    if f.type == FeatureType.CONSTRUCTOR:
+        return "constructor"
+    elif f.type in (FeatureType.FUNCTION, FeatureType.CLASS_METHOD):
+        return "function"
+    elif f.type == features_pb2.Feature.Type.INSTANCE_METHOD:
+        return "method"
+    else:
+        return "unknown"
+
+
+def get_type_priority(f: features_pb2.Feature) -> int:
+    """Returns priority for sorting: constructor < function < method < unknown."""
+    type_name = get_type_display_name(f)
+    priorities = {
+        "constructor": 0,
+        "function": 1,
+        "method": 2,
+        "unknown": 3,
+    }
+    return priorities.get(type_name, 99)
 
 
 def read_feature_registry(file_path: str) -> features_pb2.FeatureRegistry:
-    """Reads a FeatureRegistry from a text proto file.
-
-    Args:
-      file_path: Path to the .txtpb file.
-
-    Returns:
-      A FeatureRegistry instance.
-    """
+    """Reads a FeatureRegistry from a text proto file."""
     registry = features_pb2.FeatureRegistry()
     with open(file_path, "rb") as f:
         text_format.Parse(f.read(), registry)
@@ -28,21 +66,7 @@ def match_features(
     target_features: List[features_pb2.Feature],
     alpha: float,
 ) -> List[Tuple[features_pb2.Feature, features_pb2.Feature, float]]:
-    """Matches features between two lists based on a similarity threshold.
-
-    Features that score higher than `alpha` are considered matches, added to
-    the result list, and removed from both input lists to avoid duplicate
-    matching. Uses the Hungarian algorithm for global optimization.
-
-    Args:
-      base_features: The first list of features. Modified in-place.
-      target_features: The second list of features. Modified in-place.
-      alpha: The similarity threshold (0.0 to 1.0) for a match.
-
-    Returns:
-      A list of tuples (feature_from_base, feature_from_target,
-                        similarity_score).
-    """
+    """Matches features between two lists using Hungarian algorithm."""
     if not base_features or not target_features:
         return []
 
@@ -74,15 +98,11 @@ def match_features(
 
     # Update the input lists in-place (Remove matched items)
     base_features[:] = [
-        f for i, f in enumerate(base_features)
-        if i not in matched_base_indices
+        f for i, f in enumerate(base_features) if i not in matched_base_indices
     ]
     target_features[:] = [
-        f for i, f in enumerate(target_features)
-        if i not in matched_target_indices
+        f for i, f in enumerate(target_features) if i not in matched_target_indices
     ]
-
-    return matches
 
     return matches
 
@@ -92,200 +112,346 @@ def match_registries(
     target_registry: features_pb2.FeatureRegistry,
     alpha: float,
     report_type: str = "symmetric",
-) -> str:
-    """Matches features between two FeatureRegistries and generates a report.
+) -> MatchResult:
+    """Matches features and generates a master report + module sub-reports."""
+    
+    # 1. Group by Module (Normalized Namespace)
+    features_base = defaultdict(list)
+    for f in base_registry.features:
+        key = f.normalized_namespace or f.namespace or "Unknown Module"
+        features_base[key].append(f)
 
-    This delegates to `match_features` and constructs a human-readable
-    Markdown string listing the matched original feature names.
+    features_target = defaultdict(list)
+    for f in target_registry.features:
+        key = f.normalized_namespace or f.namespace or "Unknown Module"
+        features_target[key].append(f)
 
-    Args:
-      base_registry: The first FeatureRegistry.
-      target_registry: The second FeatureRegistry.
-      alpha: The similarity threshold (0.0 to 1.0) for a match.
-      report_type: 'symmetric' or 'directional' reporting style.
+    all_modules = sorted(set(features_base.keys()) | set(features_target.keys()))
 
-    Returns:
-      A Markdown string documenting the matched features.
-    """
-    from collections import defaultdict
+    # Global Stats using Set logic for Jaccard/F1
+    # We will accumulate counts as we process modules
+    total_solid_matches = 0
+    total_base_features = len(base_registry.features)
+    total_target_features = len(target_registry.features)
 
-    base_features = list(base_registry.features)
-    target_features = list(target_registry.features)
+    # Master Report Header
+    from datetime import datetime
+    
+    master_lines = []
+    
+    if report_type == "raw":
+        # Raw CSV Report
+        # Columns: base_namespace,base_member_of,base_name,target_namespace,target_member_of,target_name,type,score
+        csv_header = "base_namespace,base_member_of,base_name,target_namespace,target_member_of,target_name,type,score"
+        csv_lines = [csv_header]
+        
+        def get_feature_cols(f: features_pb2.Feature) -> tuple[str, str, str]:
+            ns = f.namespace or ""
+            if not ns and f.normalized_namespace:
+                ns = f.normalized_namespace
+            
+            # member_of
+            mem = f.member_of or ""
+            if not mem and f.normalized_member_of:
+                mem = f.normalized_member_of
+            if mem.lower() == "null":
+                mem = ""
+                
+            # name
+            name = f.original_name or f.normalized_name or ""
+            return ns, mem, name
 
-    total_base = len(base_features)
-    total_target = len(target_features)
+        def escape_csv(s):
+            if s is None:
+                return ""
+            if ',' in s or '"' in s or '\n' in s:
+                return f'"{s.replace("\"", "\"\"")}"'
+            return s
 
-    # Pass 1: Solid Matches (mutates lists)
-    solid_matches = match_features(base_features, target_features, alpha)
+        for module in all_modules:
+            base_list = features_base[module]
+            target_list = features_target[module]
+            
+            # Pass 1: Solid Matches
+            solid_matches = match_features(base_list, target_list, alpha)
+            
+            # Pass 2: Potential Matches (formerly Near Misses)
+            beta = max(0.0, alpha - _NEAR_MISS_THRESHOLD)
+            potential_matches = match_features(base_list, target_list, beta)
+            
+            # Leftovers
+            unmatched_base = base_list
+            unmatched_target = target_list
+            
+            for f_base, f_target, score in solid_matches:
+                b_ns, b_mem, b_name = get_feature_cols(f_base)
+                t_ns, t_mem, t_name = get_feature_cols(f_target)
+                f_type = get_type_display_name(f_base)
+                
+                line = (
+                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
+                    f"{escape_csv(t_ns)},{escape_csv(t_mem)},{escape_csv(t_name)},"
+                    f"{escape_csv(f_type)},{score:.4f}"
+                )
+                csv_lines.append(line)
 
-    # Pass 2: Near Misses (mutates lists)
-    beta = max(0.0, alpha - 0.15)
-    near_misses = match_features(base_features, target_features, beta)
+            for f_base, f_target, score in potential_matches:
+                b_ns, b_mem, b_name = get_feature_cols(f_base)
+                t_ns, t_mem, t_name = get_feature_cols(f_target)
+                f_type = get_type_display_name(f_base)
+                
+                line = (
+                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
+                    f"{escape_csv(t_ns)},{escape_csv(t_mem)},{escape_csv(t_name)},"
+                    f"{escape_csv(f_type)},{score:.4f}"
+                )
+                csv_lines.append(line)
 
-    # Leftovers
-    unmatched_base = base_features
-    unmatched_target = target_features
+            for f_base in unmatched_base:
+                b_ns, b_mem, b_name = get_feature_cols(f_base)
+                f_type = get_type_display_name(f_base)
+                
+                line = (
+                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
+                    f",,,"
+                    f"{escape_csv(f_type)},0.0000"
+                )
+                csv_lines.append(line)
 
-    if report_type == "symmetric":
-        union_size = total_base + total_target - len(solid_matches)
-        parity_score = (
-            len(solid_matches) / union_size if union_size > 0 else 1.0
+            for f_target in unmatched_target:
+                t_ns, t_mem, t_name = get_feature_cols(f_target)
+                f_type = get_type_display_name(f_target)
+                
+                line = (
+                    f",,,"
+                    f"{escape_csv(t_ns)},{escape_csv(t_mem)},{escape_csv(t_name)},"
+                    f"{escape_csv(f_type)},0.0000"
+                )
+                csv_lines.append(line)
+
+        return MatchResult(
+            master_content="\n".join(csv_lines),
+            module_files={}
         )
-        score_name = "Jaccard Index"
-    else:  # directional
-        precision = (
-            len(solid_matches) / total_target if total_target > 0 else 1.0
+
+    title_suffix = "Symmetric" if report_type == "symmetric" else "Directional"
+    master_lines.append(f"# Feature Matching Report: {title_suffix}")
+    master_lines.append(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    master_lines.append("")
+    master_lines.append(f"**Base:** {base_registry.language} ({base_registry.version})")
+    master_lines.append(f"**Target:** {target_registry.language} ({target_registry.version})")
+    
+    # Placeholder for Global Score (calculated at end)
+    global_score_idx = len(master_lines)
+    master_lines.append("GLOBAL_SCORE_PLACEHOLDER") 
+    master_lines.append("")
+
+    master_lines.append("## Module Summary")
+    master_lines.append("| Module | Features (Base) | Score | Status | Details |")
+    master_lines.append("|---|---|---|---|---|")
+
+    module_files = {}
+
+    for module in all_modules:
+        base_list = features_base[module]
+        target_list = features_target[module]
+        
+        mod_base_count = len(base_list)
+        mod_target_count = len(target_list)
+
+        # Pass 1: Solid Matches
+        solid_matches = match_features(base_list, target_list, alpha)
+        mod_solid_count = len(solid_matches)
+        total_solid_matches += mod_solid_count
+
+        # Pass 2: Potential Matches (formerly Near Misses)
+        beta = max(0.0, alpha - _NEAR_MISS_THRESHOLD)
+        potential_matches = match_features(base_list, target_list, beta)
+
+        # Leftovers
+        unmatched_base = base_list
+        unmatched_target = target_list
+
+        # Calculate Module Score
+        if report_type == "symmetric":
+            union_size = mod_base_count + mod_target_count - mod_solid_count
+            mod_score = (
+                mod_solid_count / union_size if union_size > 0 else 1.0
+            )
+        else:  # directional
+            precision = stats.calculate_precision(mod_solid_count, mod_target_count)
+            recall = stats.calculate_recall(mod_solid_count, mod_base_count)
+            mod_score = stats.calculate_f1(precision, recall)
+        
+        status_icon = "❌"
+        if mod_score == 1.0:
+            status_icon = "✅"
+        elif mod_score >= 0.8:
+            status_icon = "⚠️"
+
+        # Safe filename
+        module_safe_name = module.replace(".", "_")
+        module_filename = f"{module_safe_name}.md"
+
+        # Add to Master
+        # Note: We assume the caller places module files in a subdirectory named 'modules' or similar.
+        # Let's standardize on `{stem}_modules/` where stem is output filename.
+        # But here we don't know the stem.
+        # We will use a placeholder `{modules_dir}` and replace it in main.
+        master_lines.append(
+            f"| `{module}` | {mod_base_count} | {mod_score:.2%} | {status_icon} | "
+            f"[View Details]({{modules_dir}}/{module_filename}) |"
         )
-        recall = len(solid_matches) / total_base if total_base > 0 else 1.0
-        if precision + recall == 0:
-            parity_score = 0.0
+
+        mod_total_features = mod_base_count + mod_target_count - mod_solid_count if report_type == "symmetric" else mod_base_count
+
+        # Generate Module Content
+        mod_lines = []
+        mod_lines.append(f"# Module: `{module}`")
+        # Back link usually works if we know the relative path structure.
+        # Use placeholder {master_report} which will be replaced in main.
+        # It should link to the master report file.
+        mod_lines.append("[⬅️ Back to Master Report](../{master_report})")
+        mod_lines.append("")
+        mod_lines.append(f"**Score:** {mod_score:.2%} ({status_icon})")
+        
+        if report_type == "directional":
+             mod_lines.append(
+                "| Metric | Score |\n"
+                "|---|---|\n"
+                f"| **Precision** | {precision:.2%} |\n"
+                f"| **Recall** | {recall:.2%} |"
+            )
         else:
-            parity_score = 2 * (precision * recall) / (precision + recall)
-        score_name = "F1 Score"
+             # For symmetric, we usually just have the score (Jaccard).
+             # We can make it a table too for consistency if desired, but user asked "Similar to the main markdown... do that for the module markdown files too".
+             # Main markdown has "Global Jaccard Index: X%" for symmetric (not table).
+             # Wait, main markdown ONLY uses table for directional in my previous edit.
+             # "Global Jaccard Index: 25.00%" (one line) vs Table for F1/Precision/Recall.
+             # User said: "Similar to the main markdown... do that for the module markdown files too".
+             # So for directional module reports, I should use a table.
+             pass
 
-    lines = [
-        "# Cross-Language Feature Parity Report",
-        f"**Base:** {base_registry.language} ({base_registry.version})",
-        f"**Target:** {target_registry.language} ({target_registry.version})",
-        f"**Feature Parity Score ({score_name}):** {parity_score:.1%}",
-        "",
-    ]
+        mod_lines.append("")
+        mod_lines.append(f"**Features:** {mod_total_features}")
+        mod_lines.append("")
 
-    modules = defaultdict(lambda: {
-        'solid': [],
-        'near': [],
-        'unmatched_base': [],
-        'unmatched_target': []
-    })
-
-    for f_base, f_target, score in solid_matches:
-        ns = f_base.namespace or "Unknown Module"
-        modules[ns]['solid'].append((f_base, f_target, score))
-
-    for f_base, f_target, score in near_misses:
-        ns = f_base.namespace or "Unknown Module"
-        modules[ns]['near'].append((f_base, f_target, score))
-
-    for f_base in unmatched_base:
-        ns = f_base.namespace or "Unknown Module"
-        modules[ns]['unmatched_base'].append(f_base)
-
-    for f_target in unmatched_target:
-        ns = f_target.namespace or "Unknown Module"
-        modules[ns]['unmatched_target'].append(f_target)
-
-    def format_feature(f: features_pb2.Feature) -> str:
-        name = f.original_name or f.normalized_name
-        member = f.member_of
-        if member and member.lower() != "null":
-            return f"{member}.{name}"
-        return name
-
-    def get_type_display_name(f: features_pb2.Feature) -> str:
-        """Map Feature Type enum to a human-readable Type string."""
-        FeatureType = features_pb2.Feature.Type
-        if f.type == FeatureType.CONSTRUCTOR:
-            return "Constructor"
-        elif f.type in (FeatureType.FUNCTION, FeatureType.CLASS_METHOD):
-            return "Function"
-        elif f.type == features_pb2.Feature.Type.INSTANCE_METHOD:
-            return "Method"
-        else:
-            return "Unknown"
-
-    for ns in sorted(modules.keys()):
-        lines.append(f"## Module '{ns}'")
-        lines.append("")
-        mod_data = modules[ns]
+        # Sort matches by type
+        solid_matches.sort(key=lambda x: (get_type_priority(x[0]), x[0].normalized_name))
+        potential_matches.sort(key=lambda x: (get_type_priority(x[0]), x[0].normalized_name))
 
         if report_type == "symmetric":
-            if mod_data['solid']:
-                lines.append("### ✅ Solid Matches")
-                lines.append(
+            if solid_matches:
+                mod_lines.append("### ✅ Solid Matches")
+                mod_lines.append(
                     "| Type | Base Feature | Target Feature | "
                     "Similarity Score |"
                 )
-                lines.append("|---|---|---|---|")
-                for f_base, f_target, score in mod_data['solid']:
+                mod_lines.append("|---|---|---|---|")
+                for f_base, f_target, score in solid_matches:
                     f_type = get_type_display_name(f_base)
-                    lines.append(
+                    mod_lines.append(
                         f"| {f_type} | `{format_feature(f_base)}` | "
                         f"`{format_feature(f_target)}` | {score:.2f} |"
                     )
-                lines.append("")
+                mod_lines.append("")
 
-            if mod_data['near']:
-                lines.append("### \u26A0\uFE0F Near Misses")
-                lines.append(
+            if potential_matches:
+                mod_lines.append("### ⚠️ Potential Matches")
+                mod_lines.append(
                     "| Type | Base Feature | Closest Target Candidate | "
                     "Similarity |"
                 )
-                lines.append("|---|---|---|---|")
-                for f_base, f_target, score in mod_data['near']:
+                mod_lines.append("|---|---|---|---|")
+                for f_base, f_target, score in potential_matches:
                     f_type = get_type_display_name(f_base)
-                    lines.append(
+                    mod_lines.append(
                         f"| {f_type} | `{format_feature(f_base)}` | "
                         f"`{format_feature(f_target)}` | {score:.2f} |"
                     )
-                lines.append("")
+                mod_lines.append("")
 
-            if mod_data['unmatched_base'] or mod_data['unmatched_target']:
-                lines.append("### \u274C Unmatched Features")
-                lines.append("| Missing Feature | Missing In |")
-                lines.append("|---|---|")
-                for f_base in mod_data['unmatched_base']:
-                    lines.append(f"| `{format_feature(f_base)}` | Target |")
-                for f_target in mod_data['unmatched_target']:
-                    lines.append(f"| `{format_feature(f_target)}` | Base |")
-                lines.append("")
-        else:
-            if mod_data['solid']:
-                lines.append("### ✅ Matched Features")
-                lines.append(
+            if unmatched_base or unmatched_target:
+                mod_lines.append("### ❌ Unmatched Features")
+                mod_lines.append("| Missing Feature | Missing In |")
+                mod_lines.append("|---|---|")
+                for f_base in unmatched_base:
+                    mod_lines.append(f"| `{format_feature(f_base)}` | Target |")
+                for f_target in unmatched_target:
+                    mod_lines.append(f"| `{format_feature(f_target)}` | Base |")
+                mod_lines.append("")
+        else:  # directional
+            if solid_matches:
+                mod_lines.append("### ✅ Matched Features")
+                mod_lines.append(
                     "| Type | Base Feature | Target Feature | "
                     "Similarity Score |"
                 )
-                lines.append("|---|---|---|---|")
-                for f_base, f_target, score in mod_data['solid']:
+                mod_lines.append("|---|---|---|---|")
+                for f_base, f_target, score in solid_matches:
                     f_type = get_type_display_name(f_base)
-                    lines.append(
+                    mod_lines.append(
                         f"| {f_type} | `{format_feature(f_base)}` | "
                         f"`{format_feature(f_target)}` | {score:.2f} |"
                     )
-                lines.append("")
+                mod_lines.append("")
 
-            if mod_data['near']:
-                lines.append("### \u26A0\uFE0F Inconsistencies (Near Misses)")
-                lines.append(
+            if potential_matches:
+                mod_lines.append("### ⚠️ Potential Matches")
+                mod_lines.append(
                     "| Type | Base Feature | Closest Target Candidate | "
                     "Similarity |"
                 )
-                lines.append("|---|---|---|---|")
-                for f_base, f_target, score in mod_data['near']:
+                mod_lines.append("|---|---|---|---|")
+                for f_base, f_target, score in potential_matches:
                     f_type = get_type_display_name(f_base)
-                    lines.append(
+                    mod_lines.append(
                         f"| {f_type} | `{format_feature(f_base)}` | "
                         f"`{format_feature(f_target)}` | {score:.2f} |"
                     )
-                lines.append("")
+                mod_lines.append("")
 
-            if mod_data['unmatched_base']:
-                lines.append("### \u274C Missing in Target (Base Exclusive)")
-                lines.append("| Missing Feature |")
-                lines.append("|---|")
-                for f_base in mod_data['unmatched_base']:
-                    lines.append(f"| `{format_feature(f_base)}` |")
-                lines.append("")
+            if unmatched_base:
+                mod_lines.append("### ❌ Missing in Target")
+                mod_lines.append("| Missing Feature |")
+                mod_lines.append("|---|")
+                for f_base in unmatched_base:
+                    mod_lines.append(f"| `{format_feature(f_base)}` |")
+                mod_lines.append("")
+                
+            # Directional usually ignores target exclusives, but we can list them if needed.
+            # For strict directional (Base -> Target), we flag missing in target.
+            
+        module_files[module_filename] = "\n".join(mod_lines).strip()
 
-            if mod_data['unmatched_target']:
-                lines.append("### \u274C Target Exclusives")
-                lines.append("| Extra Target Feature |")
-                lines.append("|---|")
-                for f_target in mod_data['unmatched_target']:
-                    lines.append(f"| `{format_feature(f_target)}` |")
-                lines.append("")
+    # Calculate Global Score
+    if report_type == "symmetric":
+        union_size = total_base_features + total_target_features - total_solid_matches
+        parity_score = (
+            total_solid_matches / union_size if union_size > 0 else 1.0
+        )
+        global_stats = f"**Global Jaccard Index:** {parity_score:.2%}"
+    else:
+        precision = stats.calculate_precision(total_solid_matches, total_target_features)
+        recall = stats.calculate_recall(total_solid_matches, total_base_features)
+        parity_score = stats.calculate_f1(precision, recall)
+        
+        global_stats = (
+            "| Metric | Score |\n"
+            "|---|---|\n"
+            f"| **Precision** | {precision:.2%} |\n"
+            f"| **Recall** | {recall:.2%} |\n"
+            f"| **Global F1 Score** | {parity_score:.2%} |"
+        )
 
-    return "\n".join(lines).strip()
+    master_lines[
+        global_score_idx
+    ] = global_stats
+
+    return MatchResult(
+        master_content="\n".join(master_lines).strip(),
+        module_files=module_files
+    )
 
 
 def main():
@@ -310,14 +476,14 @@ def main():
     parser.add_argument(
         "--alpha",
         type=float,
-        default=0.7,
-        help="Similarity threshold (0.0 to 1.0) defaults to 0.7.",
+        default=0.8,
+        help="Similarity threshold (0.0 to 1.0) defaults to 0.8.",
     )
     parser.add_argument(
         "--report-type",
-        choices=["symmetric", "directional"],
+        choices=["symmetric", "directional", "raw"],
         default="symmetric",
-        help="Type of gap report to generate (symmetric or directional).",
+        help="Type of gap report to generate (symmetric, directional, or raw).",
     )
     args = parser.parse_args()
 
@@ -328,16 +494,50 @@ def main():
         print(f"Error reading feature registries: {e}", file=sys.stderr)
         sys.exit(1)
 
-    report = match_registries(
+    result = match_registries(
         base_registry, target_registry, args.alpha, args.report_type
     )
 
+    output_path = Path(args.output)
+    
+    if args.report_type == "raw":
+        # Raw report is a single file, no modules directory needed
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(result.master_content)
+            print(f"Successfully wrote raw match report to {output_path}")
+        except Exception as e:
+            print(f"Error writing raw report to {output_path}: {e}", file=sys.stderr)
+            sys.exit(1)
+        return
+
+    # Create module directory
+    if result.module_files:
+        modules_dir_name = f"{output_path.stem}_modules"
+        modules_dir = output_path.parent / modules_dir_name
+        modules_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Write module files
+        for filename, content in result.module_files.items():
+            # Replace placeholder for master report link
+            # The link is relative from module dir (subplot) to master report (parent dir)
+            # So name is enough.
+            final_content = content.replace("{master_report}", output_path.name)
+            (modules_dir / filename).write_text(final_content)
+            
+        # Replace placeholder in Master Report
+        # We assume master report is in parent of modules_dir
+        # modules_dir relative to master report is just the dir name
+        master_report = result.master_content.replace("{modules_dir}", modules_dir_name)
+    else:
+        master_report = result.master_content.replace("{modules_dir}", ".")
+
     try:
-        with open(args.output, "w") as f:
-            f.write(report)
-        print(f"Successfully wrote match report to {args.output}")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(master_report)
+        print(f"Successfully wrote match report to {output_path}")
     except Exception as e:
-        print(f"Error writing report to {args.output}: {e}", file=sys.stderr)
+        print(f"Error writing report to {output_path}: {e}", file=sys.stderr)
         sys.exit(1)
 
 
