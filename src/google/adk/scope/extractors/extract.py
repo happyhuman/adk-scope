@@ -147,7 +147,10 @@ def main():
 
         logger.info("Mode: Repo extraction: %s", input_path)
 
-        config = get_config(input_path)
+        # Priority: Config in CWD > Config in Input Repo
+        config = get_config(Path("."))
+        if not config:
+            config = get_config(input_path)
         exclude_list = set(config.get(args.language, {}).get("exclude", []))
 
         search_dir = get_search_dir(input_path, args.language)
@@ -195,9 +198,8 @@ def main():
         logger.error("Failed to create output directory %s: %s", output_dir, e)
         sys.exit(1)
 
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     prefix = "py" if args.language in {"python", "py"} else "ts"
-    base_filename = f"{prefix}_{timestamp}"
+    base_filename = f"{prefix}"
 
     if _JSON_OUTPUT:
         # 1. JSON Output

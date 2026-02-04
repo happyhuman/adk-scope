@@ -1,9 +1,43 @@
 python:
   exclude:
     - examples
-
+    - a2a
+    # - agents
+    - apps
+    - artifacts
+    - auth
+    - cli
+    - code_executors
+    - dependencies
+    - errors
+    - evaluation
+    - events
+    - features
+    - flows
+    - memory
+    - models
+    - optimization
+    - planners
+    - platform
+    - plugins
+    - runners
+    - sessions
+    - telemetry
+    - tools
+    - utils
 
 typescript:
   exclude:
     # - agents
-
+    - artifacts
+    - auth
+    - code_executors
+    - events
+    - examples
+    - memory
+    - models
+    - plugins
+    - sessions
+    - telemetry
+    - tools
+    - utils
