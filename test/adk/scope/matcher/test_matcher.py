@@ -100,8 +100,10 @@ class TestMatcher(unittest.TestCase):
             type=features_pb2.Feature.Type.INSTANCE_METHOD,
         )
         
-        # f_near_base & f_near_target are a near miss (different names, same structural namespace/class)
-        # Using different return types and different enough names to drop the score below 0.8
+        # f_near_base & f_near_target are a near miss
+        # (different names, same structural namespace/class)
+        # Using different return types and different enough names to
+        # drop the score below 0.8
         f_near_base = features_pb2.Feature(
             original_name="base_name",
             normalized_name="base_name",
@@ -145,43 +147,75 @@ class TestMatcher(unittest.TestCase):
         target_registry.features.extend([f2, f_near_target])
 
         # Test Symmetric Report
-        report_sym = matcher.match_registries(base_registry, target_registry, 0.9, report_type="symmetric")
+        report_sym = matcher.match_registries(
+            base_registry, target_registry, 0.9, report_type="symmetric"
+        )
         self.assertIn("# Cross-Language Feature Parity Report", report_sym)
         self.assertIn("**Base:** Python (1.0.0)", report_sym)
         self.assertIn("**Target:** TypeScript (2.0.0)", report_sym)
-        self.assertIn("**Feature Parity Score (Jaccard Index):** 25.0%", report_sym)
+        self.assertIn(
+            "**Feature Parity Score (Jaccard Index):** 25.0%", report_sym
+        )
         
         self.assertIn("## Module 'google.adk.events'", report_sym)
         
         # Solid Matches
         self.assertIn("### ✅ Solid Matches", report_sym)
-        self.assertIn("| Type | Base Feature | Target Feature | Similarity Score |", report_sym)
-        self.assertIn("| Method | `BaseClass.fSameBase` | `TargetClass.fSameTarget` |", report_sym)
+        self.assertIn(
+            "| Type | Base Feature | Target Feature | Similarity Score |",
+            report_sym
+        )
+        self.assertIn(
+            "| Method | `BaseClass.fSameBase` | `TargetClass.fSameTarget` |",
+            report_sym
+        )
         
         # Near Misses
         self.assertIn("### ⚠️ Near Misses", report_sym)
-        self.assertIn("| Type | Base Feature | Closest Target Candidate | Similarity |", report_sym)
-        self.assertIn("| Method | `base_member.base_name` | `target_member.target_name` |", report_sym)
+        self.assertIn(
+            "| Type | Base Feature | Closest Target Candidate | Similarity |",
+            report_sym
+        )
+        self.assertIn(
+            "| Method | `base_member.base_name` | "
+            "`target_member.target_name` |",
+            report_sym,
+        )
 
         # Unmatched / Gaps
         self.assertIn("### ❌ Unmatched Features", report_sym)
         self.assertIn("| `totally_diff` | Target |", report_sym)
 
         # Test Directional Report
-        report_dir = matcher.match_registries(base_registry, target_registry, 0.9, report_type="directional")
+        report_dir = matcher.match_registries(
+            base_registry, target_registry, 0.9, report_type="directional"
+        )
         self.assertIn("**Feature Parity Score (F1 Score):** 40.0%", report_dir)
 
         self.assertIn("## Module 'google.adk.events'", report_dir)
 
         # Solid Matches
         self.assertIn("### ✅ Matched Features", report_dir)
-        self.assertIn("| Type | Base Feature | Target Feature | Similarity Score |", report_dir)
-        self.assertIn("| Method | `BaseClass.fSameBase` | `TargetClass.fSameTarget` |", report_dir)
+        self.assertIn(
+            "| Type | Base Feature | Target Feature | Similarity Score |",
+            report_dir
+        )
+        self.assertIn(
+            "| Method | `BaseClass.fSameBase` | `TargetClass.fSameTarget` |",
+            report_dir
+        )
 
         # Near Misses
         self.assertIn("### ⚠️ Inconsistencies (Near Misses)", report_dir)
-        self.assertIn("| Type | Base Feature | Closest Target Candidate | Similarity |", report_dir)
-        self.assertIn("| Method | `base_member.base_name` | `target_member.target_name` |", report_dir)
+        self.assertIn(
+            "| Type | Base Feature | Closest Target Candidate | Similarity |",
+            report_dir
+        )
+        self.assertIn(
+            "| Method | `base_member.base_name` | "
+            "`target_member.target_name` |",
+            report_dir,
+        )
         
         # Unmatched / Gaps
         self.assertIn("### ❌ Missing in Target (Base Exclusive)", report_dir)

@@ -213,13 +213,17 @@ class TestSimilarityScorer(unittest.TestCase):
             normalized_namespace="my_module",
             type=features_pb.Feature.Type.CONSTRUCTOR,
         )
-        score = self.scorer.get_similarity_score(self.feature1, feature_constructor)
+        score = self.scorer.get_similarity_score(
+            self.feature1, feature_constructor
+        )
         self.assertEqual(score, 0.0)
 
     def test_constructor_weights(self):
-        """Test that CONSTRUCTOR comparisons ignore name and prioritize member_of."""
+        """Test that CONSTRUCTOR comparisons ignore name and prioritize
+        member_of.
+        """
         c1 = features_pb.Feature(
-            normalized_name="constructor1", # Completely diff names
+            normalized_name="constructor1",  # Completely diff names
             normalized_member_of="MyClass",
             normalized_namespace="my_module",
             type=features_pb.Feature.Type.CONSTRUCTOR,
@@ -236,7 +240,9 @@ class TestSimilarityScorer(unittest.TestCase):
         self.assertGreater(score, 0.9)
 
     def test_function_weights(self):
-        """Test that FUNCTION comparisons ignore member_of and prioritize name."""
+        """Test that FUNCTION comparisons ignore member_of and prioritize
+        name.
+        """
         f1 = features_pb.Feature(
             normalized_name="myFunction",
             normalized_member_of="SomeClass", # Completely diff member_of

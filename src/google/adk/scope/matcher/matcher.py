@@ -128,10 +128,14 @@ def match_registries(
 
     if report_type == "symmetric":
         union_size = total_base + total_target - len(solid_matches)
-        parity_score = len(solid_matches) / union_size if union_size > 0 else 1.0
+        parity_score = (
+            len(solid_matches) / union_size if union_size > 0 else 1.0
+        )
         score_name = "Jaccard Index"
     else:  # directional
-        precision = len(solid_matches) / total_target if total_target > 0 else 1.0
+        precision = (
+            len(solid_matches) / total_target if total_target > 0 else 1.0
+        )
         recall = len(solid_matches) / total_base if total_base > 0 else 1.0
         if precision + recall == 0:
             parity_score = 0.0
@@ -179,9 +183,10 @@ def match_registries(
 
     def get_type_display_name(f: features_pb2.Feature) -> str:
         """Map Feature Type enum to a human-readable Type string."""
-        if f.type == features_pb2.Feature.Type.CONSTRUCTOR:
+        FeatureType = features_pb2.Feature.Type
+        if f.type == FeatureType.CONSTRUCTOR:
             return "Constructor"
-        elif f.type in (features_pb2.Feature.Type.FUNCTION, features_pb2.Feature.Type.CLASS_METHOD):
+        elif f.type in (FeatureType.FUNCTION, FeatureType.CLASS_METHOD):
             return "Function"
         elif f.type == features_pb2.Feature.Type.INSTANCE_METHOD:
             return "Method"
@@ -196,20 +201,32 @@ def match_registries(
         if report_type == "symmetric":
             if mod_data['solid']:
                 lines.append("### ✅ Solid Matches")
-                lines.append("| Type | Base Feature | Target Feature | Similarity Score |")
+                lines.append(
+                    "| Type | Base Feature | Target Feature | "
+                    "Similarity Score |"
+                )
                 lines.append("|---|---|---|---|")
                 for f_base, f_target, score in mod_data['solid']:
                     f_type = get_type_display_name(f_base)
-                    lines.append(f"| {f_type} | `{format_feature(f_base)}` | `{format_feature(f_target)}` | {score:.2f} |")
+                    lines.append(
+                        f"| {f_type} | `{format_feature(f_base)}` | "
+                        f"`{format_feature(f_target)}` | {score:.2f} |"
+                    )
                 lines.append("")
 
             if mod_data['near']:
                 lines.append("### \u26A0\uFE0F Near Misses")
-                lines.append("| Type | Base Feature | Closest Target Candidate | Similarity |")
+                lines.append(
+                    "| Type | Base Feature | Closest Target Candidate | "
+                    "Similarity |"
+                )
                 lines.append("|---|---|---|---|")
                 for f_base, f_target, score in mod_data['near']:
                     f_type = get_type_display_name(f_base)
-                    lines.append(f"| {f_type} | `{format_feature(f_base)}` | `{format_feature(f_target)}` | {score:.2f} |")
+                    lines.append(
+                        f"| {f_type} | `{format_feature(f_base)}` | "
+                        f"`{format_feature(f_target)}` | {score:.2f} |"
+                    )
                 lines.append("")
 
             if mod_data['unmatched_base'] or mod_data['unmatched_target']:
@@ -224,20 +241,32 @@ def match_registries(
         else:
             if mod_data['solid']:
                 lines.append("### ✅ Matched Features")
-                lines.append("| Type | Base Feature | Target Feature | Similarity Score |")
+                lines.append(
+                    "| Type | Base Feature | Target Feature | "
+                    "Similarity Score |"
+                )
                 lines.append("|---|---|---|---|")
                 for f_base, f_target, score in mod_data['solid']:
                     f_type = get_type_display_name(f_base)
-                    lines.append(f"| {f_type} | `{format_feature(f_base)}` | `{format_feature(f_target)}` | {score:.2f} |")
+                    lines.append(
+                        f"| {f_type} | `{format_feature(f_base)}` | "
+                        f"`{format_feature(f_target)}` | {score:.2f} |"
+                    )
                 lines.append("")
 
             if mod_data['near']:
                 lines.append("### \u26A0\uFE0F Inconsistencies (Near Misses)")
-                lines.append("| Type | Base Feature | Closest Target Candidate | Similarity |")
+                lines.append(
+                    "| Type | Base Feature | Closest Target Candidate | "
+                    "Similarity |"
+                )
                 lines.append("|---|---|---|---|")
                 for f_base, f_target, score in mod_data['near']:
                     f_type = get_type_display_name(f_base)
-                    lines.append(f"| {f_type} | `{format_feature(f_base)}` | `{format_feature(f_target)}` | {score:.2f} |")
+                    lines.append(
+                        f"| {f_type} | `{format_feature(f_base)}` | "
+                        f"`{format_feature(f_target)}` | {score:.2f} |"
+                    )
                 lines.append("")
 
             if mod_data['unmatched_base']:

@@ -97,15 +97,17 @@ class SimilarityScorer:
         t1, t2 = feature1.type, feature2.type
         current_weights = self.weights.copy()
 
-        if t1 == features_pb.Feature.Type.CONSTRUCTOR and t2 == features_pb.Feature.Type.CONSTRUCTOR:
+        FeatureType = features_pb.Feature.Type
+        if t1 == FeatureType.CONSTRUCTOR and t2 == FeatureType.CONSTRUCTOR:
             current_weights["member_of"] += current_weights["name"]
             current_weights["name"] = 0.0
-        elif t1 in (features_pb.Feature.Type.FUNCTION, features_pb.Feature.Type.CLASS_METHOD) and \
-             t2 in (features_pb.Feature.Type.FUNCTION, features_pb.Feature.Type.CLASS_METHOD):
+        elif t1 in (FeatureType.FUNCTION, FeatureType.CLASS_METHOD) and \
+             t2 in (FeatureType.FUNCTION, FeatureType.CLASS_METHOD):
             current_weights["member_of"] /= 2.0
             current_weights["name"] += current_weights["member_of"]
-        elif t1 == features_pb.Feature.Type.INSTANCE_METHOD and t2 == features_pb.Feature.Type.INSTANCE_METHOD:
-            pass # Keep default weights
+        elif t1 == FeatureType.INSTANCE_METHOD and \
+             t2 == FeatureType.INSTANCE_METHOD:
+            pass  # Keep default weights
         else:
             return 0.0 # Fast out for incompatible types
 
