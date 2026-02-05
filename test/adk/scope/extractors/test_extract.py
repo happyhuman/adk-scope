@@ -141,7 +141,9 @@ class TestExtractMain(unittest.TestCase):
         f.touch()
         self.configure_args(lang="python", input_file=str(f))
 
-        self.mock_py_extractor.extract_features.return_value = [feature_pb2.Feature(original_name='dummy')]
+        self.mock_py_extractor.extract_features.return_value = [
+            feature_pb2.Feature(original_name='dummy')
+        ]
         self.mock_py_extractor.get_version.return_value = "1.0"
 
         extract.main()
@@ -164,7 +166,9 @@ class TestExtractMain(unittest.TestCase):
         self.configure_args(lang="python", input_dir=str(d))
 
         self.mock_py_extractor.find_files.return_value = [d / "a.py"]
-        self.mock_py_extractor.extract_features.return_value = [feature_pb2.Feature(original_name='dummy')]
+        self.mock_py_extractor.extract_features.return_value = [
+            feature_pb2.Feature(original_name='dummy')
+        ]
         self.mock_py_extractor.get_version.return_value = "1.0"
 
         extract.main()
@@ -181,7 +185,9 @@ class TestExtractMain(unittest.TestCase):
         self.configure_args(lang="python", input_repo=str(r))
 
         self.mock_py_extractor.find_files.return_value = [r / "src" / "a.py"]
-        self.mock_py_extractor.extract_features.return_value = [feature_pb2.Feature(original_name='dummy')]
+        self.mock_py_extractor.extract_features.return_value = [
+            feature_pb2.Feature(original_name='dummy')
+        ]
         self.mock_py_extractor.get_version.return_value = "1.0"
 
         extract.main()

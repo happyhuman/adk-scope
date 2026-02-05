@@ -384,10 +384,10 @@ def match_registries(
              adk_value = ", ".join(adk_parts)
              
              row_content = (
-                f"| {adk_value} | `{module}` | {mod_base_count} | {mod_score:.2%} | "
-                f"{status_icon} | "
-                f"[View Details]({{modules_dir}}/{module_filename}) |"
-            )
+                 f"| {adk_value} | `{module}` | {mod_base_count} | "
+                 f"{mod_score:.2%} | {status_icon} | "
+                 f"[View Details]({{modules_dir}}/{module_filename}) |"
+             )
         else:
             row_content = (
                 f"| `{module}` | {mod_base_count} | {mod_score:.2%} | "
@@ -610,13 +610,15 @@ def main():
     )
 
     output_path = Path(args.output)
-    
+
     if args.report_type == "raw":
         # Raw report is a single file, no modules directory needed
         try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(result.master_content)
-            logging.info(f"Successfully wrote raw match report to {output_path}")
+            logging.info(
+                f"Successfully wrote raw match report to {output_path}"
+            )
         except Exception as e:
             logging.error(f"Error writing raw report to {output_path}: {e}")
             sys.exit(1)
@@ -627,7 +629,7 @@ def main():
         modules_dir_name = f"{output_path.stem}_modules"
         modules_dir = output_path.parent / modules_dir_name
         modules_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Write module files
         for filename, content in result.module_files.items():
             # Replace placeholder for master report link
@@ -635,7 +637,7 @@ def main():
             # So name is enough.
             final_content = content.replace("{master_report}", output_path.name)
             (modules_dir / filename).write_text(final_content)
-            
+
         # Replace placeholder in Master Report
         # We assume master report is in parent of modules_dir
         # modules_dir relative to master report is just the dir name

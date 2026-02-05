@@ -17,9 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 class NodeProcessor:
+    """Process Tree-sitter nodes into Feature objects for TypeScript."""
+
     def __init__(self):
         self.normalizer = TypeNormalizer()
-    """Process Tree-sitter nodes into Feature objects for TypeScript."""
 
     def process(
         self, node: Node, file_path: Path, repo_root: Path
@@ -93,7 +94,7 @@ class NodeProcessor:
 
         parameters = self._extract_params(node, param_docs)
         original_returns, normalized_returns = self._extract_return_types(node)
-        original_returns, normalized_returns = self._extract_return_types(node)
+
         is_async = not self._is_blocking(node, original_returns)
 
         maturity = self._extract_maturity(node)
@@ -556,7 +557,8 @@ class NodeProcessor:
     ) -> feature_pb2.Param:
         normalized_strings = []
         for t in types:
-            normalized_strings.extend(self.normalizer.normalize(t, 'typescript'))
+                normalized_types = self.normalizer.normalize(t, "typescript")
+                normalized_strings.extend(normalized_types)
 
         normalized_strings = sorted(list(set(normalized_strings)))
         if not normalized_strings:
@@ -600,62 +602,7 @@ class NodeProcessor:
 
         return "obj"
 
-    
-        # Handle fundamental TS types
-        t = t.strip()
-        if not t:
-            return ["OBJECT"]
 
-        # A | B
-        if "|" in t:
-            parts = t.split("|")
-            res = []
-            for p in parts:
-                res.extend(self._normalize_ts_type(p))
-            return res
-
-        # Generics: Promise<T>, Array<T>
-        if "<" in t and t.endswith(">"):
-            base = t.split("<", 1)[0].strip()
-            # Find matching closing bracket or assumue last
-            inner = t[t.find("<") + 1 : -1].strip()
-
-            if base == "Promise":
-                return self._normalize_ts_type(inner)
-            if base in ("Array", "ReadonlyArray", "Generator", "AsyncGenerator", "Iterable", "Iterator", "AsyncIterable", "AsyncIterator"):
-                return ["LIST"]
-            if base == "Map":
-                return ["MAP"]
-            if base == "Set":
-                return ["SET"]
-            # Fallback for others
-            return ["OBJECT"]
-
-        t_lower = t.lower()
-        if t_lower in ("string", "formattedstring", "path"):
-            return ["STRING"]
-        if t_lower in ("number", "int", "float", "integer", "double"):
-            return ["NUMBER"]
-        if t_lower in ("boolean", "bool"):
-            return ["BOOLEAN"]
-        if t_lower == "unknown":
-            return ["UNKNOWN"]
-        if t_lower in ("any", "object"):
-            return ["OBJECT"]
-        if t_lower.endswith("[]"):
-            return ["LIST"]
-        if (
-            t_lower.startswith("map")
-            or t_lower.startswith("record")
-            or "{" in t
-        ):
-            return ["MAP"]
-        if t_lower.startswith("set"):
-            return ["SET"]
-        if t_lower == "void":
-            return []
-
-        return ["OBJECT"]
 
     def _extract_return_types(self, node: Node) -> Tuple[List[str], List[str]]:
         return_type_node = node.child_by_field_name("return_type")
@@ -683,16 +630,6 @@ class NodeProcessor:
         for rt in return_types:
             if rt.startswith("Promise<") or rt == "Promise":
                 return False
-
-        return True
-        # Check for 'async' modifier or keyword
-        for child in node.children:
-            text = child.text.decode("utf-8")
-            if text == "async":
-                return False
-            # Sometimes modifiers are wrapped?
-            # But usually async is a direct child in TS grammar for
-            # method_definition
 
         return True
 

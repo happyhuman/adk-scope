@@ -35,40 +35,84 @@ class TestTypeNormalizer(unittest.TestCase):
     def test_python_normalization(self):
         self.assertEqual(self.normalizer.normalize("str", "python"), ["STRING"])
         self.assertEqual(self.normalizer.normalize("int", "python"), ["NUMBER"])
-        self.assertEqual(self.normalizer.normalize("bool", "python"), ["BOOLEAN"])
+        self.assertEqual(
+            self.normalizer.normalize("bool", "python"), ["BOOLEAN"]
+        )
         self.assertEqual(self.normalizer.normalize("list", "python"), ["LIST"])
         self.assertEqual(self.normalizer.normalize("dict", "python"), ["MAP"])
         self.assertEqual(self.normalizer.normalize("set", "python"), ["SET"])
         self.assertEqual(self.normalizer.normalize("None", "python"), ["null"])
         self.assertEqual(self.normalizer.normalize("any", "python"), ["OBJECT"])
-        self.assertEqual(self.normalizer.normalize("Optional[str]", "python"), ["STRING", "null"])
-        self.assertEqual(self.normalizer.normalize("Union[str, int]", "python"), ["STRING", "NUMBER"])
-        self.assertEqual(self.normalizer.normalize("List[int]", "python"), ["LIST"])
-        self.assertEqual(self.normalizer.normalize("Tuple[str, int]", "python"), ["STRING", "NUMBER"])
+        self.assertEqual(self.normalizer.normalize(
+            "Optional[str]", "python"), ["STRING", "null"])
+        self.assertEqual(
+            self.normalizer.normalize("Union[str, int]", "python"),
+            ["STRING", "NUMBER"],
+        )
+        self.assertEqual(
+            self.normalizer.normalize("List[int]", "python"), ["LIST"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize("Tuple[str, int]", "python"),
+            ["STRING", "NUMBER"],
+        )
 
     def test_typescript_normalization(self):
-        self.assertEqual(self.normalizer.normalize("string", "typescript"), ["STRING"])
-        self.assertEqual(self.normalizer.normalize("number", "typescript"), ["NUMBER"])
-        self.assertEqual(self.normalizer.normalize("boolean", "typescript"), ["BOOLEAN"])
-        self.assertEqual(self.normalizer.normalize("string[]", "typescript"), ["LIST"])
-        self.assertEqual(self.normalizer.normalize("Array<string>", "typescript"), ["LIST"])
-        self.assertEqual(self.normalizer.normalize("Map<string, number>", "typescript"), ["MAP"])
-        self.assertEqual(self.normalizer.normalize("Set<any>", "typescript"), ["SET"])
+        self.assertEqual(
+            self.normalizer.normalize("string", "typescript"), ["STRING"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize("number", "typescript"), ["NUMBER"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize("boolean", "typescript"), ["BOOLEAN"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize("string[]", "typescript"), ["LIST"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize("Array<string>", "typescript"), ["LIST"]
+        )
+        self.assertEqual(self.normalizer.normalize(
+            "Map<string, number>", "typescript"), ["MAP"])
+        self.assertEqual(
+            self.normalizer.normalize("Set<any>", "typescript"), ["SET"]
+        )
         self.assertEqual(self.normalizer.normalize("void", "typescript"), [])
-        self.assertEqual(self.normalizer.normalize("any", "typescript"), ["OBJECT"])
-        self.assertEqual(self.normalizer.normalize("unknown", "typescript"), ["UNKNOWN"])
-        self.assertEqual(self.normalizer.normalize("Promise<string>", "typescript"), ["STRING"])
-        self.assertEqual(self.normalizer.normalize("string | number", "typescript"), ["STRING", "NUMBER"])
+        self.assertEqual(
+            self.normalizer.normalize("any", "typescript"), ["OBJECT"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize("unknown", "typescript"), ["UNKNOWN"]
+        )
+        normalized = self.normalizer.normalize("Promise<string>", "typescript")
+        self.assertEqual(normalized, ["STRING"])
+        self.assertEqual(
+            self.normalizer.normalize("string | number", "typescript"),
+            ["STRING", "NUMBER"],
+        )
 
     def test_edge_cases(self):
         self.assertEqual(self.normalizer.normalize("", "python"), ["OBJECT"])
         self.assertEqual(self.normalizer.normalize(" ", "python"), ["OBJECT"])
-        self.assertEqual(self.normalizer.normalize("", "typescript"), ["OBJECT"])
-        self.assertEqual(self.normalizer.normalize(" ", "typescript"), ["OBJECT"])
-        self.assertEqual(self.normalizer.normalize("unsupported_type", "python"), ["OBJECT"])
-        self.assertEqual(self.normalizer.normalize("unsupported_type", "typescript"), ["OBJECT"])
-        self.assertEqual(self.normalizer.normalize("str", "unsupported_language"), ["STRING"])
-        self.assertEqual(self.normalizer.normalize("MyCustomType", "unsupported_language"), ["OBJECT"])
+        self.assertEqual(
+            self.normalizer.normalize("", "typescript"), ["OBJECT"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize(" ", "typescript"), ["OBJECT"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize("unsupported_type", "python"), ["OBJECT"]
+        )
+        self.assertEqual(self.normalizer.normalize(
+            "unsupported_type", "typescript"), ["OBJECT"])
+        self.assertEqual(
+            self.normalizer.normalize("str", "unsupported_language"), ["STRING"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize("MyCustomType", "unsupported_language"),
+            ["OBJECT"],
+        )
 
 
 if __name__ == '__main__':

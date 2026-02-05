@@ -22,7 +22,8 @@ class TypeNormalizer:
         elif language == 'typescript':
             return self._normalize_ts_type(type_name)
         # Add placeholders for future languages like 'java' and 'go'
-        # Fallback for unknown languages: only normalize if it's a known simple type, otherwise OBJECT
+        # Fallback for unknown languages: only normalize if it's a known simple
+        # type, otherwise OBJECT
         normalized = self._simple_normalize(type_name)
         return [normalized]
 
@@ -87,7 +88,10 @@ class TypeNormalizer:
 
             if base == "Promise":
                 return self._normalize_ts_type(inner)
-            if base in ("Array", "ReadonlyArray", "Generator", "AsyncGenerator", "Iterable", "Iterator", "AsyncIterable", "AsyncIterator"):
+            if base in (
+                "Array", "ReadonlyArray", "Generator", "AsyncGenerator",
+                "Iterable", "Iterator", "AsyncIterable", "AsyncIterator"
+            ):
                 return ["LIST"]
             if base == "Map":
                 return ["MAP"]
@@ -126,7 +130,10 @@ class TypeNormalizer:
         t = t.lower().strip()
         if t == "none":
             return "null"
-        if t in ("list", "array", "slice", "vector", "generator", "asyncgenerator", "iterable", "iterator", "asynciterable", "asynciterator"):
+        if t in (
+            "list", "array", "slice", "vector", "generator", "asyncgenerator",
+            "iterable", "iterator", "asynciterable", "asynciterator"
+        ):
             return "LIST"
         if t in ("set",):
             return "SET"

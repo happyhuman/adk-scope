@@ -72,7 +72,8 @@ class SimilarityScorer:
             for t2 in set2:
                 if t1 == t2:
                     score = 1.0
-                elif {t1, t2} == {"MAP", "OBJECT"} or {t1, t2} == {"MAP", "ANY"}:
+                elif ({t1, t2} == {"MAP", "OBJECT"} or
+                      {t1, t2} == {"MAP", "ANY"}):
                     score = 0.4
                 elif t1 in ("UNKNOWN", "ANY") or t2 in ("UNKNOWN", "ANY"):
                     score = 0.3
