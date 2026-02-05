@@ -422,7 +422,7 @@ def _process_module(
     module_safe_name = module.replace(".", "_")
     module_filename = f"{module_safe_name}.md"
 
-    row_content = f"| `{module}` | {mod_base_count} | {mod_score:.2%} | {status_icon} | [View Details]({{modules_dir}}/{module_filename}) |"
+    details_link = f"[View Details]({{modules_dir}}/{module_filename})"
     if report_type == "symmetric":
         adk_parts = []
         if mod_base_count > 0:
@@ -430,7 +430,9 @@ def _process_module(
         if mod_target_count > 0:
             adk_parts.append(target_lang_code)
         adk_value = ", ".join(adk_parts)
-        row_content = f"| {adk_value} | {row_content}"
+        row_content = f"| {adk_value} | `{module}` | {mod_base_count} | {mod_score:.2%} | {status_icon} | {details_link} |"
+    else:
+        row_content = f"| `{module}` | {mod_base_count} | {mod_score:.2%} | {status_icon} | {details_link} |"
 
     # Module Content
     mod_lines = [f"# Module: `{module}`", "[⬅️ Back to Master Report](../{master_report})", "", f"**Score:** {mod_score:.2%} ({status_icon})"]
