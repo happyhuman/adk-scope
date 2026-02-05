@@ -2,7 +2,6 @@ import logging
 import sys
 from pathlib import Path
 
-import datetime
 import yaml
 from google.protobuf import text_format
 from google.protobuf.json_format import MessageToJson, MessageToDict

@@ -489,7 +489,7 @@ class TestNodeProcessor(unittest.TestCase):
         result = self.processor.process(node, self.file_path, self.repo_root)
         self.assertEqual(len(result.parameters), 0)
 
-    @patch("google.adk.scope.extractors.converter_py.normalize_type_complex")
+    @patch("google.adk.scope.extractors.converter_py.TypeNormalizer.normalize")
     def test_param_enum_attribute_error(self, mock_normalize):
         # Force normalize to return a value not in keys
         mock_normalize.return_value = ["INVALID_TYPE_NAME"]

@@ -1,42 +1,63 @@
-import unittest
 import argparse
-from unittest.mock import patch
-from pathlib import Path
-from google.adk.scope.utils.args import parse_args
+import logging
+import unittest
+from unittest import mock
+
+from google.adk.scope.utils import args as adk_args
 
 
-class TestArgs(unittest.TestCase):
-    @patch("argparse.ArgumentParser.parse_args")
-    def test_parse_args(self, mock_parse):
-        # Setup mock return value
-        mock_args = argparse.Namespace(
-            language="py",
-            input_repo=Path("/tmp/repo"),
-            output=Path("/tmp/out_dir"),
-            input_file=None,
-            input_dir=None,
+class ArgsTest(unittest.TestCase):
+
+    def test_add_verbose_argument(self):
+        parser = argparse.ArgumentParser()
+        adk_args.add_verbose_argument(parser)
+        args = parser.parse_args(['--verbose'])
+        self.assertTrue(args.verbose)
+
+    @mock.patch('logging.basicConfig')
+    def test_configure_logging_verbose(self, mock_basic_config):
+        args = argparse.Namespace(verbose=True)
+        adk_args.configure_logging(args)
+        mock_basic_config.assert_called_once_with(level=logging.DEBUG)
+
+    @mock.patch('logging.basicConfig')
+    def test_configure_logging_default(self, mock_basic_config):
+        args = argparse.Namespace(verbose=False)
+        adk_args.configure_logging(args)
+        mock_basic_config.assert_called_once_with(level=logging.INFO)
+
+    @mock.patch('argparse.ArgumentParser.parse_args')
+    def test_parse_args_python(self, mock_parse_args):
+        mock_parse_args.return_value = argparse.Namespace(
+            language='py',
+            input_file='test.py',
+            output='out',
+            verbose=False
         )
-        mock_parse.return_value = mock_args
+        parsed_args = adk_args.parse_args()
+        self.assertEqual(parsed_args.language, 'python')
 
-        # Call the function
-        # (arguments are parsed from sys.argv by default,
-        # but we mocked parse_args)
-        args = parse_args()
+    @mock.patch('argparse.ArgumentParser.parse_args')
+    def test_parse_args_typescript(self, mock_parse_args):
+        mock_parse_args.return_value = argparse.Namespace(
+            language='ts',
+            input_file='test.ts',
+            output='out',
+            verbose=False
+        )
+        parsed_args = adk_args.parse_args()
+        self.assertEqual(parsed_args.language, 'typescript')
 
-        self.assertEqual(args.input_repo, Path("/tmp/repo"))
-        self.assertEqual(args.output, Path("/tmp/out_dir"))
-        # Should be normalized
-        self.assertEqual(args.language, "python")
 
     def test_arg_definitions(self):
         # Verify that the parser is set up with correct arguments
-        with patch("argparse.ArgumentParser") as mock_parser_cls:
+        with mock.patch("argparse.ArgumentParser") as mock_parser_cls:
             mock_parser = mock_parser_cls.return_value
             # We also need to mock the group returned by
             # add_mutually_exclusive_group
             mock_group = mock_parser.add_mutually_exclusive_group.return_value
 
-            parse_args()
+            adk_args.parse_args()
 
             # Verify mutual exclusive group creation
             mock_parser.add_mutually_exclusive_group.assert_called_once_with(
@@ -71,6 +92,5 @@ class TestArgs(unittest.TestCase):
             args, _ = parser_calls[2]
             self.assertEqual(args[0], "--verbose")
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

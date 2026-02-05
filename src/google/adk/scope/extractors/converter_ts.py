@@ -9,13 +9,16 @@ from typing import List, Optional, Tuple, Set
 
 from tree_sitter import Node
 
-from google.adk.scope.utils.strings import normalize_name
+from google.adk.scope.utils.normalizer import normalize_name
+from google.adk.scope.utils.normalizer import TypeNormalizer
 from google.adk.scope import features_pb2 as feature_pb2
 
 logger = logging.getLogger(__name__)
 
 
 class NodeProcessor:
+    def __init__(self):
+        self.normalizer = TypeNormalizer()
     """Process Tree-sitter nodes into Feature objects for TypeScript."""
 
     def process(
@@ -553,7 +556,7 @@ class NodeProcessor:
     ) -> feature_pb2.Param:
         normalized_strings = []
         for t in types:
-            normalized_strings.extend(self._normalize_ts_type(t))
+            normalized_strings.extend(self.normalizer.normalize(t, 'typescript'))
 
         normalized_strings = sorted(list(set(normalized_strings)))
         if not normalized_strings:
@@ -597,7 +600,7 @@ class NodeProcessor:
 
         return "obj"
 
-    def _normalize_ts_type(self, t: str) -> List[str]:
+    
         # Handle fundamental TS types
         t = t.strip()
         if not t:
@@ -666,7 +669,7 @@ class NodeProcessor:
             # logically T for async?
             # Schema says "original_return_types".
             # normalized usually unwrap?
-            return [raw], self._normalize_ts_type(raw)
+            return [raw], self.normalizer.normalize(raw, 'typescript')
         return [], []
 
     def _is_blocking(self, node: Node, return_types: List[str]) -> bool:

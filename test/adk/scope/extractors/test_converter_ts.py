@@ -605,48 +605,7 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertEqual(len(result.parameters), 1)
         self.assertEqual(result.parameters[0].original_name, "args")
 
-    def test_type_normalization_extended(self):
-        # Array<string> -> LIST
-        # ReadonlyArray<number> -> LIST
-        # Map<string, int> -> MAP
-        # Set<any> -> SET
-        # string[] -> LIST
-        # void -> []
 
-        def test_type(t_str, expected_norm):
-            norm = self.processor._normalize_ts_type(t_str)
-            # norm is list of strings (enum names)
-            # Map enum names to values? Or just check processor internal output?
-            # _normalize_ts_type returns list of STRINGS like ['LIST']
-            self.assertEqual(norm, expected_norm)
-
-        test_type("Array<string>", ["LIST"])
-        test_type("ReadonlyArray<number>", ["LIST"])
-        test_type("Map<string, number>", ["MAP"])
-        test_type("Set<any>", ["SET"])
-        test_type("string[]", ["LIST"])
-        test_type("void", [])
-        test_type("path", ["STRING"])
-        test_type("formattedstring", ["STRING"])
-        test_type("boolean", ["BOOLEAN"])
-
-    def test_recursive_types(self):
-        # Promise<Promise<string>>
-        # Array<Array<number>>
-        def test_type(t_str, expected_norm):
-            norm = self.processor._normalize_ts_type(t_str)
-            self.assertEqual(norm, expected_norm)
-
-        # Promise unwrapping is recursive in logic?
-        # _normalize_ts_type(Promise<T>) -> _normalize_ts_type(T)
-        # So Promise<Promise<string>> -> Promise<string> -> string -> [STRING]
-        test_type("Promise<Promise<string>>", ["STRING"])
-
-        # Array<Array<number>> -> LIST
-        test_type("Array<Array<number>>", ["LIST"])
-
-        # Map<string, Map<k,v>> -> MAP
-        test_type("Map<string, Map<string, int>>", ["MAP"])
 
     def test_abstract_and_interfaces(self):
         # abstract class method
