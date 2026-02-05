@@ -1,4 +1,7 @@
 import argparse
+import logging
+
+from google.adk.scope.utils import args as adk_args
 import dataclasses
 import sys
 from pathlib import Path
@@ -591,13 +594,15 @@ def main():
         default="symmetric",
         help="Type of gap report to generate (symmetric, directional, or raw).",
     )
+    adk_args.add_verbose_argument(parser)
     args = parser.parse_args()
+    adk_args.configure_logging(args)
 
     try:
         base_registry = read_feature_registry(args.base)
         target_registry = read_feature_registry(args.target)
     except Exception as e:
-        print(f"Error reading feature registries: {e}", file=sys.stderr)
+        logging.error(f"Error reading feature registries: {e}")
         sys.exit(1)
 
     result = match_registries(
@@ -611,12 +616,9 @@ def main():
         try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(result.master_content)
-            print(f"Successfully wrote raw match report to {output_path}")
+            logging.info(f"Successfully wrote raw match report to {output_path}")
         except Exception as e:
-            print(
-                f"Error writing raw report to {output_path}: {e}",
-                file=sys.stderr,
-            )
+            logging.error(f"Error writing raw report to {output_path}: {e}")
             sys.exit(1)
         return
 
@@ -646,9 +648,9 @@ def main():
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(master_report)
-        print(f"Successfully wrote match report to {output_path}")
+        logging.info(f"Successfully wrote match report to {output_path}")
     except Exception as e:
-        print(f"Error writing report to {output_path}: {e}", file=sys.stderr)
+        logging.error(f"Error writing report to {output_path}: {e}")
         sys.exit(1)
 
 

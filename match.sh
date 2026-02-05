@@ -11,4 +11,9 @@ export PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH}"
 
 # Run the python matcher
 # Pass all arguments to the python script
-python3 "${SCRIPT_DIR}/src/google/adk/scope/matcher/matcher.py" "$@"
+VERBOSE=""
+if [[ "$1" == "-v" ]]; then
+  VERBOSE="--verbose"
+  shift
+fi
+python3 "${SCRIPT_DIR}/src/google/adk/scope/matcher/matcher.py" $VERBOSE "$@"

@@ -3,7 +3,21 @@ Argument parsing utility for ADK Scope.
 """
 
 import argparse
+import logging
 from pathlib import Path
+
+
+def add_verbose_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-v", "--verbose", help="show all logs", action="store_true"
+    )
+
+
+def configure_logging(args: argparse.Namespace) -> None:
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
 
 
 def parse_args() -> argparse.Namespace:

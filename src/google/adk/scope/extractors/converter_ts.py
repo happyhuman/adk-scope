@@ -619,7 +619,7 @@ class NodeProcessor:
 
             if base == "Promise":
                 return self._normalize_ts_type(inner)
-            if base in ("Array", "ReadonlyArray"):
+            if base in ("Array", "ReadonlyArray", "Generator", "AsyncGenerator", "Iterable", "Iterator", "AsyncIterable", "AsyncIterator"):
                 return ["LIST"]
             if base == "Map":
                 return ["MAP"]

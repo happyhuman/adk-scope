@@ -48,14 +48,7 @@ def normalize_type_complex(type_name: str) -> list[str]:
             result.append("null")
         return result
 
-    # Handle AsyncGenerator[A, B] -> A | B
-    if type_name.startswith("AsyncGenerator[") and type_name.endswith("]"):
-        inner = type_name[15:-1]
-        parts = _split_generics(inner)
-        result = []
-        for p in parts:
-            result.extend(normalize_type_complex(p))
-        return _unique(result)
+    # AsyncGenerator is handled by base normalizer returning LIST
 
     # Handle tuple[A, B] -> [A, B]
     if type_name.lower().startswith("tuple[") and type_name.endswith("]"):
@@ -79,7 +72,7 @@ def _simple_normalize(t: str) -> str:
     t = t.lower().strip()
     if t == "none":
         return "null"
-    if t in ("list", "array", "slice", "vector"):
+    if t in ("list", "array", "slice", "vector", "generator", "asyncgenerator", "iterable", "iterator", "asynciterable", "asynciterator"):
         return "LIST"
     if t in ("set",):
         return "SET"
