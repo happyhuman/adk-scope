@@ -610,6 +610,7 @@ def main():
     )
 
     output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if args.report_type == "raw":
         # Raw report is a single file, no modules directory needed

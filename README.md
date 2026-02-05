@@ -76,7 +76,7 @@ Once you have extracted features from two languages (e.g., Python and TypeScript
 ./match.sh \
   --base output/py.txtpb \
   --target output/ts.txtpb \
-  --output report.md \
+  --output output/ \
   --report-type directional
 ```
 
@@ -84,7 +84,7 @@ Once you have extracted features from two languages (e.g., Python and TypeScript
 | :--- | :--- |
 | `--base <path>` | **Required.** Path to the "source of truth" feature registry (e.g., Python). |
 | `--target <path>` | **Required.** Path to the comparison registry (e.g., TypeScript). |
-| `--output <path>` | **Required.** Path to the output Markdown report. |
+| `--output <dir>` | **Required.** Path for the output directory. The report filename is auto-generated. |
 | `--report-type <type>` | `symmetric` (default) for Jaccard Index, `directional` for F1/Precision/Recall, or `raw` for CSV. |
 | `--alpha <float>` | Similarity threshold (0.0 - 1.0). Default is `0.8`. |
 
