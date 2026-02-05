@@ -143,6 +143,34 @@ def match_registries(
         key = f.normalized_namespace or f.namespace or "Unknown Module"
         features_target[key].append(f)
 
+    # Fuzzy Remapping Logic
+    from jellyfish import jaro_winkler_similarity
+    
+    base_namespaces = set(features_base.keys())
+    target_remap = {}  # old_key -> new_key
+    
+    # Identify remappings
+    for t_ns in list(features_target.keys()):
+        if t_ns in base_namespaces:
+            target_remap[t_ns] = t_ns
+            continue
+            
+        # Find best fuzzy match
+        best_match = None
+        best_score = 0.0
+        for b_ns in base_namespaces:
+            score = jaro_winkler_similarity(t_ns, b_ns)
+            if score > best_score:
+                best_score = score
+                best_match = b_ns
+        
+        if best_score > 0.8 and best_match:
+            target_remap[t_ns] = best_match
+            # Move features to the best match
+            features_target[best_match].extend(features_target.pop(t_ns))
+        else:
+            target_remap[t_ns] = t_ns
+
     if report_type == "directional":
         all_modules = sorted(features_base.keys())
     else:
