@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 from google.adk.scope import features_pb2
 from google.adk.scope.matcher import matcher
 
@@ -169,7 +170,7 @@ class TestMatcher(unittest.TestCase):
         self.assertIn("**Features:** 3", module_content)
         
         # Solid Matches
-        self.assertIn("### ✅ Solid Matches", module_content)
+        self.assertIn("### ✅ Solid Features", module_content)
         self.assertIn(
             "| Type | Base Feature | Target Feature | Similarity Score |",
             module_content
@@ -268,6 +269,145 @@ class TestMatcher(unittest.TestCase):
         expected_line = "pkg,MyClass,f_same,pkg,MyClass,f_same,function,1.0000"
         self.assertIn(expected_line, csv_content)
         self.assertFalse(result.module_files)
+
+    def test_group_features_by_module(self):
+        registry = features_pb2.FeatureRegistry()
+        f1 = registry.features.add()
+        f1.namespace = "module.one"
+        f2 = registry.features.add()
+        f2.namespace = "module.two"
+        f3 = registry.features.add()
+        f3.namespace = "module.one"
+
+        result = matcher._group_features_by_module(registry)
+
+        self.assertIn("module.one", result)
+        self.assertIn("module.two", result)
+        self.assertEqual(len(result["module.one"]), 2)
+        self.assertEqual(len(result["module.two"]), 1)
+
+
+    def test_fuzzy_match_namespaces(self):
+        features_base = {
+            "module.one": [],
+            "module.two": []
+        }
+        features_target = {
+            "module.one": [features_pb2.Feature(original_name="f1_target")],
+            "module.ones": [features_pb2.Feature(original_name="f4")],
+            "module.three": [features_pb2.Feature(original_name="f5")]
+        }
+
+        matcher._fuzzy_match_namespaces(features_base, features_target)
+
+        self.assertIn("module.one", features_target)
+        self.assertIn("module.two", features_target)
+        self.assertNotIn("module.ones", features_target)
+        self.assertNotIn("module.three", features_target)
+        self.assertEqual(len(features_target["module.one"]), 2)
+        self.assertEqual(len(features_target["module.two"]), 1)
+
+
+    def test_process_module(self):
+        """Tests the end-to-end processing of a single module."""
+        f_base = features_pb2.Feature(
+            original_name="f1_base",
+            normalized_name="f1_base",
+            normalized_namespace="n1",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+        f_target = features_pb2.Feature(
+            original_name="f1_target",
+            normalized_name="f1_target",
+            normalized_namespace="n1",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+
+        with patch(
+            "google.adk.scope.matcher.matcher.match_features"
+        ) as mock_match:
+            # Let's assume one solid match and no potential matches
+            mock_match.side_effect = [
+                [(f_base, f_target, 0.95)],  # Solid matches
+                [],  # Potential matches
+            ]
+
+            result = matcher._process_module(
+                module="n1",
+                base_list=[f_base],
+                target_list=[f_target],
+                alpha=0.9,
+                report_type="symmetric",
+                base_lang_code="py",
+                target_lang_code="ts",
+            )
+
+            self.assertEqual(result["solid_matches_count"], 1)
+            self.assertEqual(result["score"], 1.0)
+            self.assertIn("| py, ts |", result["row_content"])
+            self.assertIn("# Module: `n1`", result["module_content"])
+            self.assertIn("### ✅ Solid Features", result["module_content"])
+
+
+    def test_generate_raw_report(self):
+        """Tests the raw CSV report generation."""
+        f_base = features_pb2.Feature(
+            original_name="f1_base",
+            normalized_name="f1_base",
+            namespace="n1",
+            member_of="c1",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+
+        with patch(
+            "google.adk.scope.matcher.matcher.match_features"
+        ) as mock_match:
+            mock_match.return_value = []  # No matches for simplicity
+
+            result = matcher._generate_raw_report(
+                all_modules=["n1"],
+                features_base={"n1": [f_base]},
+                features_target={"n1": []},
+                alpha=0.9,
+            )
+
+            self.assertIn("base_namespace,base_member_of,base_name", result.master_content)
+            self.assertIn("n1,c1,f1_base", result.master_content)
+
+
+    def test_generate_markdown_report(self):
+        """Tests the markdown report generation."""
+        base_registry = features_pb2.FeatureRegistry(language="Python", version="1.0.0")
+        target_registry = features_pb2.FeatureRegistry(
+            language="TypeScript", version="2.0.0"
+        )
+
+        with patch(
+            "google.adk.scope.matcher.matcher._process_module"
+        ) as mock_process:
+            mock_process.return_value = {
+                "solid_matches_count": 1,
+                "score": 1.0,
+                "row_content": "| py, ts | `n1` | 1 | 100.00% | ✅ | [View Details]({modules_dir}/n1.md) |",
+                "module_filename": "n1.md",
+                "module_content": "# Module: `n1`",
+            }
+
+            result = matcher._generate_markdown_report(
+                base_registry=base_registry,
+                target_registry=target_registry,
+                all_modules=["n1"],
+                features_base={"n1": []},  # Dummy data
+                features_target={"n1": []},  # Dummy data
+                alpha=0.9,
+                report_type="symmetric",
+            )
+
+            self.assertIn("# Feature Matching Report: Symmetric", result.master_content)
+            self.assertIn("## Module Summary", result.master_content)
+            self.assertIn("| `n1` |", result.master_content)
+            self.assertIn("n1.md", result.module_files)
+
 
 if __name__ == "__main__":
     unittest.main()
