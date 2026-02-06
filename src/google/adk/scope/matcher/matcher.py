@@ -2,9 +2,11 @@ import argparse
 import dataclasses
 import logging
 import sys
+from datetime import datetime
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple
+from jellyfish import jaro_winkler_similarity
 
 import numpy as np
 from google.protobuf import text_format
@@ -115,16 +117,16 @@ def match_features(
 def get_language_code(language_name: str) -> str:
     """Returns a short code for the language."""
     name = language_name.upper()
-    if name == "PYTHON":
+    if name == {"PYTHON", "PY"}:
         return "py"
-    elif name == "TYPESCRIPT":
+    elif name in {"TYPESCRIPT", "TS"}:
         return "ts"
     elif name == "JAVA":
         return "java"
-    elif name == "GOLANG":
+    elif name in {"GOLANG", "GO"}:
         return "go"
     else:
-        return name[:2].lower()
+        return name.lower()
 
 
 def _group_features_by_module(
@@ -143,7 +145,6 @@ def _fuzzy_match_namespaces(
     features_target: Dict[str, List[features_pb2.Feature]],
 ) -> None:
     """Remaps target namespaces to base namespaces using fuzzy matching."""
-    from jellyfish import jaro_winkler_similarity
 
     base_namespaces = sorted(list(features_base.keys()))
     remapped_features = defaultdict(list, {k: [] for k in features_base})
@@ -174,215 +175,171 @@ def _fuzzy_match_namespaces(
     features_target.update(remapped_features)
 
 
-def match_registries(
-    base_registry: features_pb2.FeatureRegistry,
-    target_registry: features_pb2.FeatureRegistry,
-    alpha: float,
-    report_type: str = "symmetric",
-) -> MatchResult:
-    """Matches features and generates a master report + module sub-reports."""
+class ReportGenerator:
+    def __init__(
+        self,
+        base_registry: features_pb2.FeatureRegistry,
+        target_registry: features_pb2.FeatureRegistry,
+        alpha: float,
+    ):
+        self.base_registry = base_registry
+        self.target_registry = target_registry
 
-    features_base = _group_features_by_module(base_registry)
-    features_target = _group_features_by_module(target_registry)
-    _fuzzy_match_namespaces(features_base, features_target)
-
-    if report_type == "directional":
-        all_modules = sorted(features_base.keys())
-    else:
+        self.features_base = _group_features_by_module(base_registry)
+        self.features_target = _group_features_by_module(target_registry)
+        _fuzzy_match_namespaces(self.features_base, self.features_target)
+        self.alpha = alpha
+    
+    def generate_report(self, report_type) -> MatchResult:
+        """Generates report."""
+        if report_type == "raw":
+            return self.generate_raw_report()
+        elif report_type == "directional":  
+            return self.generate_directional_report()
+        elif report_type == "symmetric":
+            return self.generate_symmetric_report()
+        else:
+            raise ValueError(f"Unknown report type: {report_type}")
+    
+    def generate_raw_report(self) -> MatchResult:
+        """Generates a raw CSV report."""
+        base_code = get_language_code(self.base_registry.language)
+        target_code = get_language_code(self.target_registry.language)
         all_modules = sorted(
-            set(features_base.keys()) | set(features_target.keys())
+            set(self.features_base.keys()) | set(self.features_target.keys())
+        )        
+        csv_header = (
+            f"{base_code}_namespace,{base_code}_member_of,{base_code}_name,"
+            f"{target_code}_namespace,{target_code}_member_of,{target_code}_name,"
+            "type,score"
+        )
+        csv_lines = [csv_header]
+
+        def get_feature_cols(f: features_pb2.Feature) -> tuple[str, str, str]:
+            ns = f.namespace or ""
+            if not ns and f.normalized_namespace:
+                ns = f.normalized_namespace
+
+            mem = f.member_of or ""
+            if not mem and f.normalized_member_of:
+                mem = f.normalized_member_of
+            if mem.lower() == "null":
+                mem = ""
+
+            name = f.original_name or f.normalized_name or ""
+            return ns, mem, name
+
+        def escape_csv(s):
+            if s is None:
+                return ""
+            if "," in s or '"' in s or "\n" in s:
+                return '"{}"'.format(s.replace('"', '""'))
+            return s
+
+        for module in all_modules:
+            base_list = self.features_base.get(module, [])
+            target_list = self.features_target.get(module, [])
+
+            solid_matches = match_features(base_list, target_list, self.alpha)
+            beta = max(0.0, self.alpha - _NEAR_MISS_THRESHOLD)
+            potential_matches = match_features(base_list, target_list, beta)
+
+            unmatched_base = base_list
+            unmatched_target = target_list
+
+            for f_base, f_target, score in solid_matches:
+                b_ns, b_mem, b_name = get_feature_cols(f_base)
+                t_ns, t_mem, t_name = get_feature_cols(f_target)
+                f_type = get_type_display_name(f_base)
+                csv_lines.append(
+                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
+                    f"{escape_csv(t_ns)},{escape_csv(t_mem)},{escape_csv(t_name)},"
+                    f"{escape_csv(f_type)},{score:.4f}"
+                )
+
+            for f_base, f_target, score in potential_matches:
+                b_ns, b_mem, b_name = get_feature_cols(f_base)
+                t_ns, t_mem, t_name = get_feature_cols(f_target)
+                f_type = get_type_display_name(f_base)
+                csv_lines.append(
+                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
+                    f"{escape_csv(t_ns)},{escape_csv(t_mem)},{escape_csv(t_name)},"
+                    f"{escape_csv(f_type)},{score:.4f}"
+                )
+
+            for f_base in unmatched_base:
+                b_ns, b_mem, b_name = get_feature_cols(f_base)
+                f_type = get_type_display_name(f_base)
+                csv_lines.append(
+                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
+                    f",,,{escape_csv(f_type)},0.0000"
+                )
+
+            for f_target in unmatched_target:
+                t_ns, t_mem, t_name = get_feature_cols(f_target)
+                f_type = get_type_display_name(f_target)
+                csv_lines.append(
+                    f",,,{escape_csv(t_ns)},{escape_csv(t_mem)},"
+                    f"{escape_csv(t_name)},{escape_csv(f_type)},0.0000"
+                )
+
+        return MatchResult(master_content="\n".join(csv_lines), module_files={})
+
+    def generate_directional_report(self) -> MatchResult:
+        """Generates a directional report."""
+        all_modules = sorted(self.features_base.keys())
+        master_lines = []
+        title_suffix = "Directional"
+        master_lines.extend(
+            [
+                f"# Feature Matching Report: {title_suffix}",
+                f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                "",
+                f"**Base:** {self.base_registry.language} ({self.base_registry.version})",
+                f"**Target:** {self.target_registry.language}"
+                f" ({self.target_registry.version})",
+            ]
         )
 
-    if report_type == "raw":
-        return _generate_raw_report(
-            base_registry,
-            target_registry,
-            all_modules,
-            features_base,
-            features_target,
-            alpha,
-        )
+        global_score_idx = len(master_lines)
+        master_lines.append("GLOBAL_SCORE_PLACEHOLDER")
+        master_lines.append("")
 
-    return _generate_markdown_report(
-        base_registry,
-        target_registry,
-        all_modules,
-        features_base,
-        features_target,
-        alpha,
-        report_type,
-    )
+        header = "| Module | Features (Base) | Score | Status | Details |"
+        divider = "|---|---|---|---|---|"
+        master_lines.extend(["## Module Summary", header, divider])
 
+        module_files = {}
+        module_rows = []
+        total_solid_matches = 0
 
-def _generate_raw_report(
-    base_registry: features_pb2.FeatureRegistry,
-    target_registry: features_pb2.FeatureRegistry,
-    all_modules: List[str],
-    features_base: Dict[str, List[features_pb2.Feature]],
-    features_target: Dict[str, List[features_pb2.Feature]],
-    alpha: float,
-) -> MatchResult:
-    """Generates a raw CSV report."""
-    base_code = get_language_code(base_registry.language)
-    target_code = get_language_code(target_registry.language)
-    csv_header = (
-        f"{base_code}_namespace,{base_code}_member_of,{base_code}_name,"
-        f"{target_code}_namespace,{target_code}_member_of,{target_code}_name,"
-        "type,score"
-    )
-    csv_lines = [csv_header]
+        base_code = get_language_code(self.base_registry.language)
+        target_code = get_language_code(self.target_registry.language)
 
-    def get_feature_cols(f: features_pb2.Feature) -> tuple[str, str, str]:
-        ns = f.namespace or ""
-        if not ns and f.normalized_namespace:
-            ns = f.normalized_namespace
+        for module in all_modules:
+            mod_base_list = self.features_base.get(module, [])
+            mod_target_list = self.features_target.get(module, [])
 
-        mem = f.member_of or ""
-        if not mem and f.normalized_member_of:
-            mem = f.normalized_member_of
-        if mem.lower() == "null":
-            mem = ""
-
-        name = f.original_name or f.normalized_name or ""
-        return ns, mem, name
-
-    def escape_csv(s):
-        if s is None:
-            return ""
-        if "," in s or '"' in s or "\n" in s:
-            return '"{}"'.format(s.replace('"', '""'))
-        return s
-
-    for module in all_modules:
-        base_list = features_base.get(module, [])
-        target_list = features_target.get(module, [])
-
-        solid_matches = match_features(base_list, target_list, alpha)
-        beta = max(0.0, alpha - _NEAR_MISS_THRESHOLD)
-        potential_matches = match_features(base_list, target_list, beta)
-
-        unmatched_base = base_list
-        unmatched_target = target_list
-
-        for f_base, f_target, score in solid_matches:
-            b_ns, b_mem, b_name = get_feature_cols(f_base)
-            t_ns, t_mem, t_name = get_feature_cols(f_target)
-            f_type = get_type_display_name(f_base)
-            csv_lines.append(
-                f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
-                f"{escape_csv(t_ns)},{escape_csv(t_mem)},{escape_csv(t_name)},"
-                f"{escape_csv(f_type)},{score:.4f}"
+            results = _process_module(
+                module,
+                mod_base_list,
+                mod_target_list,
+                self.alpha,
+                "directional",
+                base_code,
+                target_code,
             )
+            total_solid_matches += results["solid_matches_count"]
+            module_rows.append((results["score"], results["row_content"]))
+            if results.get("module_filename"):
+                module_files[results["module_filename"]] = results["module_content"]
 
-        for f_base, f_target, score in potential_matches:
-            b_ns, b_mem, b_name = get_feature_cols(f_base)
-            t_ns, t_mem, t_name = get_feature_cols(f_target)
-            f_type = get_type_display_name(f_base)
-            csv_lines.append(
-                f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
-                f"{escape_csv(t_ns)},{escape_csv(t_mem)},{escape_csv(t_name)},"
-                f"{escape_csv(f_type)},{score:.4f}"
-            )
+        module_rows.sort(key=lambda x: x[0], reverse=True)
+        master_lines.extend([row for _, row in module_rows])
 
-        for f_base in unmatched_base:
-            b_ns, b_mem, b_name = get_feature_cols(f_base)
-            f_type = get_type_display_name(f_base)
-            csv_lines.append(
-                f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
-                f",,,{escape_csv(f_type)},0.0000"
-            )
+        total_base_features = len(self.base_registry.features)
+        total_target_features = len(self.target_registry.features)
 
-        for f_target in unmatched_target:
-            t_ns, t_mem, t_name = get_feature_cols(f_target)
-            f_type = get_type_display_name(f_target)
-            csv_lines.append(
-                f",,,{escape_csv(t_ns)},{escape_csv(t_mem)},"
-                f"{escape_csv(t_name)},{escape_csv(f_type)},0.0000"
-            )
-
-    return MatchResult(master_content="\n".join(csv_lines), module_files={})
-
-
-def _generate_markdown_report(
-    base_registry: features_pb2.FeatureRegistry,
-    target_registry: features_pb2.FeatureRegistry,
-    all_modules: List[str],
-    features_base: Dict[str, List[features_pb2.Feature]],
-    features_target: Dict[str, List[features_pb2.Feature]],
-    alpha: float,
-    report_type: str,
-) -> MatchResult:
-    """Generates a markdown report."""
-    from datetime import datetime
-
-    master_lines = []
-    title_suffix = "Symmetric" if report_type == "symmetric" else "Directional"
-    master_lines.extend(
-        [
-            f"# Feature Matching Report: {title_suffix}",
-            f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            "",
-            f"**Base:** {base_registry.language} ({base_registry.version})",
-            f"**Target:** {target_registry.language}"
-            f" ({target_registry.version})",
-        ]
-    )
-
-    global_score_idx = len(master_lines)
-    master_lines.append("GLOBAL_SCORE_PLACEHOLDER")
-    master_lines.append("")
-
-    header = "| Module | Features (Base) | Score | Status | Details |"
-    divider = "|---|---|---|---|---|"
-    if report_type == "symmetric":
-        header = "| ADK | Module | Features (Base) | Score | Status | Details |"
-        divider = "|---|---|---|---|---|---|"
-    master_lines.extend(["## Module Summary", header, divider])
-
-    module_files = {}
-    module_rows = []
-    total_solid_matches = 0
-
-    base_code = get_language_code(base_registry.language)
-    target_code = get_language_code(target_registry.language)
-
-    for module in all_modules:
-        mod_base_list = features_base.get(module, [])
-        mod_target_list = features_target.get(module, [])
-
-        results = _process_module(
-            module,
-            mod_base_list,
-            mod_target_list,
-            alpha,
-            report_type,
-            base_code,
-            target_code,
-        )
-        total_solid_matches += results["solid_matches_count"]
-        module_rows.append((results["score"], results["row_content"]))
-        if results.get("module_filename"):
-            module_files[results["module_filename"]] = results["module_content"]
-
-    module_rows.sort(key=lambda x: x[0], reverse=True)
-    master_lines.extend([row for _, row in module_rows])
-
-    total_base_features = len(base_registry.features)
-    total_target_features = len(target_registry.features)
-    if report_type == "symmetric":
-        union_size = (
-            total_base_features + total_target_features - total_solid_matches
-        )
-        parity_score = (
-            total_solid_matches / union_size if union_size > 0 else 1.0
-        )
-        global_stats = (
-            f"**Jaccard Index:** {parity_score:.2%}\n\n"
-            "> The Jaccard Index measures the similarity between the "
-            "two feature sets. A score of 100% indicates that both languages "
-            "have identical features."
-        )
-    else:
         precision = stats.calculate_precision(
             total_solid_matches, total_target_features
         )
@@ -408,12 +365,106 @@ def _generate_markdown_report(
             "matches the base."
         )
 
-    master_lines[global_score_idx] = global_stats
+        master_lines[global_score_idx] = global_stats
 
-    return MatchResult(
-        master_content="\n".join(master_lines).strip(),
-        module_files=module_files,
+        return MatchResult(
+            master_content="\n".join(master_lines).strip(),
+            module_files=module_files,
+        )
+
+    def generate_symmetric_report(self) -> MatchResult:
+        """Generates a symmetric report."""
+        all_modules = sorted(
+            set(self.features_base.keys()) | set(self.features_target.keys())
+        )
+        master_lines = []
+        title_suffix = "Symmetric"
+        master_lines.extend(
+            [
+                f"# Feature Matching Report: {title_suffix}",
+                f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                "",
+                f"**Base:** {self.base_registry.language} ({self.base_registry.version})",
+                f"**Target:** {self.target_registry.language}"
+                f" ({self.target_registry.version})",
+            ]
+        )
+
+        global_score_idx = len(master_lines)
+        master_lines.append("GLOBAL_SCORE_PLACEHOLDER")
+        master_lines.append("")
+
+        header = "| ADK | Module | Features (Base) | Score | Status | Details |"
+        divider = "|---|---|---|---|---|---|"
+
+        master_lines.extend(["## Module Summary", header, divider])
+
+        module_files = {}
+        module_rows = []
+        total_solid_matches = 0
+
+        base_code = get_language_code(self.base_registry.language)
+        target_code = get_language_code(self.target_registry.language)
+
+        for module in all_modules:
+            mod_base_list = self.features_base.get(module, [])
+            mod_target_list = self.features_target.get(module, [])
+
+            results = _process_module(
+                module,
+                mod_base_list,
+                mod_target_list,
+                self.alpha,
+                "symmetric",
+                base_code,
+                target_code,
+            )
+            total_solid_matches += results["solid_matches_count"]
+            module_rows.append((results["score"], results["row_content"]))
+            if results.get("module_filename"):
+                module_files[results["module_filename"]] = results["module_content"]
+
+        module_rows.sort(key=lambda x: x[0], reverse=True)
+        master_lines.extend([row for _, row in module_rows])
+
+        total_base_features = len(self.base_registry.features)
+        total_target_features = len(self.target_registry.features)
+
+        union_size = (
+            total_base_features + total_target_features - total_solid_matches
+        )
+        parity_score = (
+            total_solid_matches / union_size if union_size > 0 else 1.0
+        )
+        global_stats = (
+            f"**Jaccard Index:** {parity_score:.2%}\n\n"
+            "> The Jaccard Index measures the similarity between the "
+            "two feature sets. A score of 100% indicates that both languages "
+            "have identical features."
+        )
+
+        master_lines[global_score_idx] = global_stats
+
+        return MatchResult(
+            master_content="\n".join(master_lines).strip(),
+            module_files=module_files,
+        )
+
+
+def match_registries(
+    base_registry: features_pb2.FeatureRegistry,
+    target_registry: features_pb2.FeatureRegistry,
+    alpha: float,
+    report_type: str = "symmetric",
+) -> MatchResult:
+    """Matches features and generates a master report + module sub-reports."""
+    reporter = ReportGenerator(
+        base_registry,
+        target_registry,
+        alpha,
     )
+
+    return reporter.generate_report(report_type)
 
 
 def _process_module(
