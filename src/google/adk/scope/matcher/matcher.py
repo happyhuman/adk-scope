@@ -145,7 +145,7 @@ def _fuzzy_match_namespaces(
     """Remaps target namespaces to base namespaces using fuzzy matching."""
     from jellyfish import jaro_winkler_similarity
 
-    base_namespaces = set(features_base.keys())
+    base_namespaces = sorted(list(features_base.keys()))
     remapped_features = defaultdict(list, {k: [] for k in features_base})
 
     for t_ns, features in features_target.items():
