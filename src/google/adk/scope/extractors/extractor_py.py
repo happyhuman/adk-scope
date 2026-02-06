@@ -2,11 +2,11 @@ import logging
 import pathlib
 from typing import Iterator, List
 
+import tree_sitter_python as tspy
+from tree_sitter import Language, Parser, Query, QueryCursor
+
 from google.adk.scope.extractors.converter_py import NodeProcessor
 from google.adk.scope.features_pb2 import Feature
-from tree_sitter import Language, Parser, Query, QueryCursor
-import tree_sitter_python as tspy
-
 
 SRC_DIR = "src"
 

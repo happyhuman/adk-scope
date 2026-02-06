@@ -31,7 +31,7 @@ jobs:
         # Stop the build if there are Python syntax errors or undefined names
         ruff check . --output-format=github --select=E9,F63,F7,F82 --target-version=py312
         # Run default ruff checks
-        ruff check . --line-length 80 --output-format=github --exclude=.venv,features_pb2.py
+        ruff check . --line-length 80 --output-format=github --exclude=*.ipynb,features_pb2.py
 
     - name: Run Tests
       # Reset PYTHONPATH ensures src is in path if needed, but installed package should be found

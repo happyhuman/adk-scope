@@ -1,14 +1,14 @@
-import unittest
-from unittest.mock import Mock, patch
-from pathlib import Path
-import tempfile
 import shutil
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import Mock, patch
 
+from google.adk.scope import features_pb2
 # Import the module under test
 # We need to make sure the src path is in PYTHONPATH which is handled
 # by test runner usually
 from google.adk.scope.extractors import extractor_ts as extractor
-from google.adk.scope import features_pb2
 
 
 class TestExtractor(unittest.TestCase):

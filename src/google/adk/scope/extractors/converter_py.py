@@ -4,20 +4,20 @@ Converter to transform Tree-sitter nodes into Feature objects.
 
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple, Set
+from typing import List, Optional, Set, Tuple
 
 from tree_sitter import Node
 
-from google.adk.scope.utils.strings import (
-    normalize_name,
-    normalize_type_complex,
-)
 from google.adk.scope import features_pb2 as feature_pb2
+from google.adk.scope.utils.normalizer import TypeNormalizer, normalize_name
 
 logger = logging.getLogger(__name__)
 
 
 class NodeProcessor:
+    def __init__(self):
+        self.normalizer = TypeNormalizer()
+
     """Process Tree-sitter nodes into Feature objects."""
 
     def process(
@@ -310,7 +310,6 @@ class NodeProcessor:
                 if p:
                     # Filter 'self' and 'cls'
                     if p.original_name in ("self", "cls"):
-
                         continue
 
                     # Add description if available
@@ -361,7 +360,7 @@ class NodeProcessor:
 
         normalized_strings = []
         for t in types:
-            normalized_strings.extend(normalize_type_complex(t))
+            normalized_strings.extend(self.normalizer.normalize(t, "python"))
         # Unique
         normalized_strings = sorted(list(set(normalized_strings)))
         if not normalized_strings:
@@ -408,7 +407,7 @@ class NodeProcessor:
         return_type_node = node.child_by_field_name("return_type")
         if return_type_node:
             raw = return_type_node.text.decode("utf-8")
-            normalized = normalize_type_complex(raw)
+            normalized = self.normalizer.normalize(raw, "python")
             return [raw], normalized
         return [], []
 

@@ -1,9 +1,10 @@
-import unittest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
-import tempfile
 import shutil
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
+from google.adk.scope import features_pb2 as feature_pb2
 from google.adk.scope.extractors import extract
 
 
@@ -85,11 +86,24 @@ class TestExtractMain(unittest.TestCase):
         self.mock_extractors["python"] = self.mock_py_extractor
         self.mock_extractors["typescript"] = self.mock_ts_extractor
 
+        # Enforce Output Generation
+        self.mock_json_patcher = patch(
+            "google.adk.scope.extractors.extract._JSON_OUTPUT", True
+        )
+        self.mock_json_patcher.start()
+
+        self.mock_yaml_patcher = patch(
+            "google.adk.scope.extractors.extract._YAML_OUTPUT", True
+        )
+        self.mock_yaml_patcher.start()
+
         # FeatureRegistry mock/patch ?
         # Actual FeatureRegistry is fine if we mock return of extract_features
         # But we write to file using MessageToJson
 
     def tearDown(self):
+        self.mock_yaml_patcher.stop()
+        self.mock_json_patcher.stop()
         self.mock_args_patcher.stop()
         self.mock_extractors_patcher.stop()
         shutil.rmtree(self.test_dir)
@@ -127,16 +141,18 @@ class TestExtractMain(unittest.TestCase):
         f.touch()
         self.configure_args(lang="python", input_file=str(f))
 
-        self.mock_py_extractor.extract_features.return_value = []
+        self.mock_py_extractor.extract_features.return_value = [
+            feature_pb2.Feature(original_name="dummy")
+        ]
         self.mock_py_extractor.get_version.return_value = "1.0"
 
         extract.main()
 
         self.mock_py_extractor.extract_features.assert_called()
         self.assertTrue(self.output_dir.exists())
-        self.assertEqual(len(list(self.output_dir.glob("py_*.json"))), 1)
-        self.assertEqual(len(list(self.output_dir.glob("py_*.yaml"))), 1)
-        self.assertEqual(len(list(self.output_dir.glob("py_*.txtpb"))), 1)
+        self.assertTrue((self.output_dir / "py.json").exists())
+        self.assertTrue((self.output_dir / "py.yaml").exists())
+        self.assertTrue((self.output_dir / "py.txtpb").exists())
 
     def test_input_file_not_found(self):
         self.configure_args(lang="python", input_file="/non/existent.py")
@@ -150,23 +166,28 @@ class TestExtractMain(unittest.TestCase):
         self.configure_args(lang="python", input_dir=str(d))
 
         self.mock_py_extractor.find_files.return_value = [d / "a.py"]
-        self.mock_py_extractor.extract_features.return_value = []
+        self.mock_py_extractor.extract_features.return_value = [
+            feature_pb2.Feature(original_name="dummy")
+        ]
         self.mock_py_extractor.get_version.return_value = "1.0"
 
         extract.main()
 
         self.mock_py_extractor.find_files.assert_called_with(d, recursive=False)
         self.assertTrue(self.output_dir.exists())
-        self.assertEqual(len(list(self.output_dir.glob("py_*.json"))), 1)
-        self.assertEqual(len(list(self.output_dir.glob("py_*.yaml"))), 1)
-        self.assertEqual(len(list(self.output_dir.glob("py_*.txtpb"))), 1)
+        self.assertTrue((self.output_dir / "py.json").exists())
+        self.assertTrue((self.output_dir / "py.yaml").exists())
+        self.assertTrue((self.output_dir / "py.txtpb").exists())
 
     def test_input_repo_mode(self):
         r = self.root
         (r / "src").mkdir()
         self.configure_args(lang="python", input_repo=str(r))
 
-        self.mock_py_extractor.find_files.return_value = []
+        self.mock_py_extractor.find_files.return_value = [r / "src" / "a.py"]
+        self.mock_py_extractor.extract_features.return_value = [
+            feature_pb2.Feature(original_name="dummy")
+        ]
         self.mock_py_extractor.get_version.return_value = "1.0"
 
         extract.main()
@@ -176,9 +197,9 @@ class TestExtractMain(unittest.TestCase):
             r / "src", recursive=True
         )
         self.assertTrue(self.output_dir.exists())
-        self.assertEqual(len(list(self.output_dir.glob("py_*.json"))), 1)
-        self.assertEqual(len(list(self.output_dir.glob("py_*.yaml"))), 1)
-        self.assertEqual(len(list(self.output_dir.glob("py_*.txtpb"))), 1)
+        self.assertTrue((self.output_dir / "py.json").exists())
+        self.assertTrue((self.output_dir / "py.yaml").exists())
+        self.assertTrue((self.output_dir / "py.txtpb").exists())
 
 
 if __name__ == "__main__":

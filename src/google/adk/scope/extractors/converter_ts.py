@@ -5,18 +5,21 @@ Converter to transform TypeScript Tree-sitter nodes into Feature objects.
 import logging
 import re
 from pathlib import Path
-from typing import List, Optional, Tuple, Set
+from typing import List, Optional, Set, Tuple
 
 from tree_sitter import Node
 
-from google.adk.scope.utils.strings import normalize_name
 from google.adk.scope import features_pb2 as feature_pb2
+from google.adk.scope.utils.normalizer import TypeNormalizer, normalize_name
 
 logger = logging.getLogger(__name__)
 
 
 class NodeProcessor:
     """Process Tree-sitter nodes into Feature objects for TypeScript."""
+
+    def __init__(self):
+        self.normalizer = TypeNormalizer()
 
     def process(
         self, node: Node, file_path: Path, repo_root: Path
@@ -90,7 +93,7 @@ class NodeProcessor:
 
         parameters = self._extract_params(node, param_docs)
         original_returns, normalized_returns = self._extract_return_types(node)
-        original_returns, normalized_returns = self._extract_return_types(node)
+
         is_async = not self._is_blocking(node, original_returns)
 
         maturity = self._extract_maturity(node)
@@ -360,18 +363,23 @@ class NodeProcessor:
                 "optional_parameter",
                 "rest_parameter",
             ):
-                xml_params = self._process_param_node(child)
+                xml_params = self._process_param_node(child, param_docs)
                 for p in xml_params:
                     if (
-                        p.original_name in param_docs
+                        not p.description
+                        and p.original_name in param_docs
                         and param_docs[p.original_name]
                     ):
                         p.description = param_docs[p.original_name]
                     params.append(p)
         return params
 
-    def _process_param_node(self, node: Node) -> List[feature_pb2.Param]:
+    def _process_param_node(
+        self, node: Node, param_docs: dict = None
+    ) -> List[feature_pb2.Param]:
         # returns a LIST of Params to handle destructuring
+        if param_docs is None:
+            param_docs = {}
 
         # 1. Name extraction
         pattern_node = node.child_by_field_name("pattern")
@@ -383,6 +391,9 @@ class NodeProcessor:
 
         # 2. Type extraction
         type_node = node.child_by_field_name("type")
+
+        # Parse type map if available
+        type_map = self._extract_type_map(type_node)
 
         if pattern_node and pattern_node.type == "object_pattern":
             # Handle destructuring: { a, b }: { a: string, b: number }
@@ -427,47 +438,7 @@ class NodeProcessor:
             extracted_params = []
 
             # Parse type map if available
-            type_map = {}  # name -> (type_str, optional_bool)
-            if type_node:
-                # Check for object_type node inside type_node
-                # type_annotation -> object_type
-                object_type_node = None
-                for child in type_node.children:
-                    if child.type == "object_type":
-                        object_type_node = child
-                        break
-
-                if object_type_node:
-                    for child in object_type_node.children:
-                        if child.type == "property_signature":
-                            # name: property_identifier
-                            # type: type_annotation
-                            # optional?
-                            prop_name_node = child.child_by_field_name("name")
-                            prop_type_node = child.child_by_field_name("type")
-
-                            if prop_name_node:
-                                p_name = prop_name_node.text.decode("utf-8")
-                                p_type = ""
-                                if prop_type_node:
-                                    p_type = prop_type_node.text.decode("utf-8")
-                                    if p_type.startswith(":"):
-                                        p_type = p_type[1:].strip()
-
-                                # Optionality check: check for '?' node or
-                                # if literal text has ?
-                                # child text might be "hint?:"
-                                # or checking for optional node
-                                p_optional = False
-                                for sub in child.children:
-                                    if (
-                                        sub.type == "?"
-                                        or sub.text.decode("utf-8") == "?"
-                                    ):
-                                        p_optional = True
-                                        break
-
-                                type_map[p_name] = (p_type, p_optional)
+            # type_map is already extracted above
 
             # Iterate pattern properties
             for child in pattern_node.children:
@@ -550,6 +521,28 @@ class NodeProcessor:
         if not name:
             return []
 
+        # Check if type is an object literal AND we have type_map populated
+        # This means it's `param: { a: string }` style
+        is_literal_type = raw_type and raw_type.strip().startswith("{")
+        if is_literal_type and type_map:
+            # We want to explode this into multiple parameters
+            # defined by type_map.
+            # The original param name is `name` (e.g. "params")
+            # We look for descriptions in param_docs using "params.fieldName"
+            exploded_params = []
+            for prop_name, (p_type, p_opt) in type_map.items():
+                p = self._create_single_param(
+                    prop_name,
+                    [p_type],
+                    p_opt or node.type == "optional_parameter",
+                )
+                # Try to find description: "params.prop_name"
+                doc_key = f"{name}.{prop_name}"
+                if doc_key in param_docs:
+                    p.description = param_docs[doc_key]
+                exploded_params.append(p)
+            return exploded_params
+
         return [
             self._create_single_param(
                 name,
@@ -563,7 +556,8 @@ class NodeProcessor:
     ) -> feature_pb2.Param:
         normalized_strings = []
         for t in types:
-            normalized_strings.extend(self._normalize_ts_type(t))
+            normalized_types = self.normalizer.normalize(t, "typescript")
+            normalized_strings.extend(normalized_types)
 
         normalized_strings = sorted(list(set(normalized_strings)))
         if not normalized_strings:
@@ -607,63 +601,6 @@ class NodeProcessor:
 
         return "obj"
 
-    def _normalize_ts_type(self, t: str) -> List[str]:
-        # Handle fundamental TS types
-        t = t.strip()
-        if not t:
-            return ["OBJECT"]
-
-        # A | B
-        if "|" in t:
-            parts = t.split("|")
-            res = []
-            for p in parts:
-                res.extend(self._normalize_ts_type(p))
-            return res
-
-        # Generics: Promise<T>, Array<T>
-        if "<" in t and t.endswith(">"):
-            base = t.split("<", 1)[0].strip()
-            # Find matching closing bracket or assumue last
-            inner = t[t.find("<") + 1 : -1].strip()
-
-            if base == "Promise":
-                return self._normalize_ts_type(inner)
-            if base in ("Array", "ReadonlyArray"):
-                return ["LIST"]
-            if base == "Map":
-                return ["MAP"]
-            if base == "Set":
-                return ["SET"]
-            # Fallback for others
-            return ["OBJECT"]
-
-        t_lower = t.lower()
-        if t_lower in ("string", "formattedstring", "path"):
-            return ["STRING"]
-        if t_lower in ("number", "int", "float", "integer", "double"):
-            return ["NUMBER"]
-        if t_lower in ("boolean", "bool"):
-            return ["BOOLEAN"]
-        if t_lower == "unknown":
-            return ["UNKNOWN"]
-        if t_lower in ("any", "object"):
-            return ["OBJECT"]
-        if t_lower.endswith("[]"):
-            return ["LIST"]
-        if (
-            t_lower.startswith("map")
-            or t_lower.startswith("record")
-            or "{" in t
-        ):
-            return ["MAP"]
-        if t_lower.startswith("set"):
-            return ["SET"]
-        if t_lower == "void":
-            return []
-
-        return ["OBJECT"]
-
     def _extract_return_types(self, node: Node) -> Tuple[List[str], List[str]]:
         return_type_node = node.child_by_field_name("return_type")
         if return_type_node:
@@ -676,7 +613,7 @@ class NodeProcessor:
             # logically T for async?
             # Schema says "original_return_types".
             # normalized usually unwrap?
-            return [raw], self._normalize_ts_type(raw)
+            return [raw], self.normalizer.normalize(raw, "typescript")
         return [], []
 
     def _is_blocking(self, node: Node, return_types: List[str]) -> bool:
@@ -692,16 +629,6 @@ class NodeProcessor:
                 return False
 
         return True
-        # Check for 'async' modifier or keyword
-        for child in node.children:
-            text = child.text.decode("utf-8")
-            if text == "async":
-                return False
-            # Sometimes modifiers are wrapped?
-            # But usually async is a direct child in TS grammar for
-            # method_definition
-
-        return True
 
     def _extract_maturity(self, node: Node) -> feature_pb2.Feature.Maturity:
         decorators = self._get_decorators(node)
@@ -715,3 +642,47 @@ class NodeProcessor:
         if "beta" in decorators:
             return feature_pb2.Feature.BETA
         return None
+
+    def _extract_type_map(self, type_node: Node) -> dict:
+        type_map = {}  # name -> (type_str, optional_bool)
+        if type_node:
+            # Check for object_type node inside type_node
+            # type_annotation -> object_type
+            object_type_node = None
+            for child in type_node.children:
+                if child.type == "object_type":
+                    object_type_node = child
+                    break
+
+            if object_type_node:
+                for child in object_type_node.children:
+                    if child.type == "property_signature":
+                        # name: property_identifier
+                        # type: type_annotation
+                        # optional?
+                        prop_name_node = child.child_by_field_name("name")
+                        prop_type_node = child.child_by_field_name("type")
+
+                        if prop_name_node:
+                            p_name = prop_name_node.text.decode("utf-8")
+                            p_type = ""
+                            if prop_type_node:
+                                p_type = prop_type_node.text.decode("utf-8")
+                                if p_type.startswith(":"):
+                                    p_type = p_type[1:].strip()
+
+                            # Optionality check: check for '?' node or
+                            # if literal text has ?
+                            # child text might be "hint?:"
+                            # or checking for optional node
+                            p_optional = False
+                            for sub in child.children:
+                                if (
+                                    sub.type == "?"
+                                    or sub.text.decode("utf-8") == "?"
+                                ):
+                                    p_optional = True
+                                    break
+
+                            type_map[p_name] = (p_type, p_optional)
+        return type_map

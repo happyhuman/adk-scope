@@ -1,8 +1,9 @@
 import unittest
-from unittest.mock import Mock, patch
 from pathlib import Path
-from google.adk.scope.extractors.converter_py import NodeProcessor
+from unittest.mock import Mock, patch
+
 from google.adk.scope import features_pb2 as feature_pb2
+from google.adk.scope.extractors.converter_py import NodeProcessor
 from google.adk.scope.features_pb2 import Feature
 
 
@@ -489,7 +490,7 @@ class TestNodeProcessor(unittest.TestCase):
         result = self.processor.process(node, self.file_path, self.repo_root)
         self.assertEqual(len(result.parameters), 0)
 
-    @patch("google.adk.scope.extractors.converter_py.normalize_type_complex")
+    @patch("google.adk.scope.extractors.converter_py.TypeNormalizer.normalize")
     def test_param_enum_attribute_error(self, mock_normalize):
         # Force normalize to return a value not in keys
         mock_normalize.return_value = ["INVALID_TYPE_NAME"]
@@ -821,8 +822,8 @@ class TestNodeProcessor(unittest.TestCase):
         node = self.create_mock_node(
             "function_definition", children=[name, body]
         )
-        node.child_by_field_name.side_effect = (
-            lambda n: name if n == "name" else (body if n == "body" else None)
+        node.child_by_field_name.side_effect = lambda n: (
+            name if n == "name" else (body if n == "body" else None)
         )
 
         result = self.processor.process(node, self.file_path, self.repo_root)

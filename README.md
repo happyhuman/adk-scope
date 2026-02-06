@@ -66,6 +66,60 @@ python3 -m google.adk.scope.extractors.python.extractor \
   output_dir
 ```
 
+```
+
+### Feature Matching
+
+Once you have extracted features from two languages (e.g., Python and TypeScript), you can compare them using the `match.sh` script.
+
+```bash
+./match.sh \
+  --base output/py.txtpb \
+  --target output/ts.txtpb \
+  --output output/ \
+  --report-type directional
+```
+
+| Argument | Description |
+| :--- | :--- |
+| `--base <path>` | **Required.** Path to the "source of truth" feature registry (e.g., Python). |
+| `--target <path>` | **Required.** Path to the comparison registry (e.g., TypeScript). |
+| `--output <dir>` | **Required.** Path for the output directory. The report filename is auto-generated. |
+| `--report-type <type>` | `symmetric` (default) for Jaccard Index, `directional` for F1/Precision/Recall, or `raw` for CSV. |
+| `--alpha <float>` | Similarity threshold (0.0 - 1.0). Default is `0.8`. |
+
+#### How Matching Works
+
+The matcher uses the **Hungarian Algorithm** to find the optimal assignment between features in the Base and Target registries.
+-   **Cost Function**: Based on a similarity score derived from:
+    -   Feature Name (normalized)
+    -   Namespace / Module
+    -   Feature Type (Function, Method, Class, etc.)
+-   **Thresholding**: Pairs with a similarity score below `--alpha` are discarded.
+
+#### Understanding the Reports
+
+`adk-scope` can generate three types of reports to help you understand the feature overlap between two languages.
+
+##### Symmetric Report (`--report-type symmetric`)
+
+This report is best for measuring the general similarity between two feature sets, where neither is considered the "source of truth". It uses the **Jaccard Index** to calculate a global similarity score.
+
+-   **What it measures**: The Jaccard Index measures the similarity between two sets by dividing the size of their intersection by the size of their union. The score ranges from 0% (no similarity) to 100% (identical sets).
+-   **What it means**: A high Jaccard Index indicates that both languages have a very similar set of features, with few features unique to either one. It penalizes both missing and extra features equally.
+
+##### Directional Report (`--report-type directional`)
+
+This report is ideal when you have a "base" or "source of truth" language and you want to measure how well a "target" language conforms to it. It uses **Precision**, **Recall**, and **F1-Score**.
+
+-   **Precision**: Answers the question: *"Of all the features implemented in the target language, how many of them are correct matches to features in the base language?"* A low score indicates the target has many extra features not present in the base.
+-   **Recall**: Answers the question: *"Of all the features that should be in the target language (i.e., all features in the base), how many were actually found?"* A low score indicates the target is missing many features from the base.
+-   **F1-Score**: The harmonic mean of Precision and Recall, providing a single score that balances both. A high F1-Score indicates the target is a close match to the base, having most of the required features and not too many extra ones.
+
+##### Raw Report (`--report-type raw`)
+
+This report provides a simple CSV output of all features (matched and unmatched) from both the base and target registries. It is useful for programmatic analysis or for importing the data into other tools.$
+
 ## Development
 
 ### Running Tests

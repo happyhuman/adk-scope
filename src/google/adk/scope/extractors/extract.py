@@ -2,13 +2,13 @@ import logging
 import sys
 from pathlib import Path
 
-import datetime
 import yaml
 from google.protobuf import text_format
-from google.protobuf.json_format import MessageToJson, MessageToDict
+from google.protobuf.json_format import MessageToDict, MessageToJson
+
+from google.adk.scope.extractors import extractor_py, extractor_ts
 from google.adk.scope.features_pb2 import FeatureRegistry
 from google.adk.scope.utils.args import parse_args
-from google.adk.scope.extractors import extractor_py, extractor_ts
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -16,8 +16,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 _JSON_INDENT = 2
-_JSON_OUTPUT = True
-_YAML_OUTPUT = True
+_JSON_OUTPUT = False
+_YAML_OUTPUT = False
 _PROTO_OUTPUT = True
 
 
@@ -147,7 +147,10 @@ def main():
 
         logger.info("Mode: Repo extraction: %s", input_path)
 
-        config = get_config(input_path)
+        # Priority: Config in CWD > Config in Input Repo
+        config = get_config(Path("."))
+        if not config:
+            config = get_config(input_path)
         exclude_list = set(config.get(args.language, {}).get("exclude", []))
 
         search_dir = get_search_dir(input_path, args.language)
@@ -195,9 +198,8 @@ def main():
         logger.error("Failed to create output directory %s: %s", output_dir, e)
         sys.exit(1)
 
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     prefix = "py" if args.language in {"python", "py"} else "ts"
-    base_filename = f"{prefix}_{timestamp}"
+    base_filename = f"{prefix}"
 
     if _JSON_OUTPUT:
         # 1. JSON Output
