@@ -1,8 +1,8 @@
-from typing import Optional
 import logging
+from typing import Optional
 
-from jellyfish import jaro_winkler_similarity
 import numpy as np
+from jellyfish import jaro_winkler_similarity
 from scipy.optimize import linear_sum_assignment
 
 from google.adk.scope import features_pb2 as features_pb

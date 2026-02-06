@@ -1,4 +1,5 @@
 import unittest
+
 from google.adk.scope.utils.normalizer import TypeNormalizer, normalize_name
 
 

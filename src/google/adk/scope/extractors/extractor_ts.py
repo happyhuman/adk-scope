@@ -2,11 +2,11 @@ import logging
 import pathlib
 from typing import Iterator, List
 
-from google.adk.scope.features_pb2 import Feature
-from google.adk.scope.extractors.converter_ts import NodeProcessor
-
-from tree_sitter import Language, Parser, Query, QueryCursor
 import tree_sitter_typescript as tsts
+from tree_sitter import Language, Parser, Query, QueryCursor
+
+from google.adk.scope.extractors.converter_ts import NodeProcessor
+from google.adk.scope.features_pb2 import Feature
 
 # Initialize Tree-sitter
 try:

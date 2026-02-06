@@ -4,13 +4,12 @@ Converter to transform Tree-sitter nodes into Feature objects.
 
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple, Set
+from typing import List, Optional, Set, Tuple
 
 from tree_sitter import Node
 
-from google.adk.scope.utils.normalizer import normalize_name, TypeNormalizer
-
 from google.adk.scope import features_pb2 as feature_pb2
+from google.adk.scope.utils.normalizer import TypeNormalizer, normalize_name
 
 logger = logging.getLogger(__name__)
 

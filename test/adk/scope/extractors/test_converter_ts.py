@@ -1,8 +1,9 @@
 import unittest
-from unittest.mock import Mock
 from pathlib import Path
-from google.adk.scope.extractors.converter_ts import NodeProcessor
+from unittest.mock import Mock
+
 from google.adk.scope import features_pb2 as feature_pb2
+from google.adk.scope.extractors.converter_ts import NodeProcessor
 
 
 class TestNodeProcessor(unittest.TestCase):

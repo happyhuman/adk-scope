@@ -1,11 +1,11 @@
-import unittest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
-import tempfile
 import shutil
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
-from google.adk.scope.extractors import extract
 from google.adk.scope import features_pb2 as feature_pb2
+from google.adk.scope.extractors import extract
 
 
 class TestExtractHelpers(unittest.TestCase):

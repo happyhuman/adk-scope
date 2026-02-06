@@ -5,13 +5,12 @@ Converter to transform TypeScript Tree-sitter nodes into Feature objects.
 import logging
 import re
 from pathlib import Path
-from typing import List, Optional, Tuple, Set
+from typing import List, Optional, Set, Tuple
 
 from tree_sitter import Node
 
-from google.adk.scope.utils.normalizer import normalize_name
-from google.adk.scope.utils.normalizer import TypeNormalizer
 from google.adk.scope import features_pb2 as feature_pb2
+from google.adk.scope.utils.normalizer import TypeNormalizer, normalize_name
 
 logger = logging.getLogger(__name__)
 

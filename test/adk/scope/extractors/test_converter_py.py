@@ -1,8 +1,9 @@
 import unittest
-from unittest.mock import Mock, patch
 from pathlib import Path
-from google.adk.scope.extractors.converter_py import NodeProcessor
+from unittest.mock import Mock, patch
+
 from google.adk.scope import features_pb2 as feature_pb2
+from google.adk.scope.extractors.converter_py import NodeProcessor
 from google.adk.scope.features_pb2 import Feature
 
 
