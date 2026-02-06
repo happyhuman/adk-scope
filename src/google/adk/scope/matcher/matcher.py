@@ -392,7 +392,7 @@ def _generate_markdown_report(
         parity_score = stats.calculate_f1(precision, recall)
 
         global_stats = (
-            "| Metric | Score |\n"
+            "\n| Metric | Score |\n"
             "|---|---|\n"
             f"| **Precision** | {precision:.2%} |\n"
             f"| **Recall** | {recall:.2%} |\n"
@@ -480,7 +480,7 @@ def _process_module(
     if report_type == "directional":
         mod_lines.extend(
             [
-                "| Metric | Score |",
+                "\n| Metric | Score |",
                 "|---|---|",
                 f"| **Precision** | {precision:.2%} |",
                 f"| **Recall** | {recall:.2%} |",
@@ -545,7 +545,7 @@ def _process_module(
         mod_lines.extend(
             [
                 "### ❌ Unmatched Features",
-                "| Missing Feature | Missing In |",
+                "\n| Missing Feature | Missing In |",
                 "|---|---|",
             ]
         )
