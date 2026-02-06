@@ -97,18 +97,28 @@ The matcher uses the **Hungarian Algorithm** to find the optimal assignment betw
     -   Feature Type (Function, Method, Class, etc.)
 -   **Thresholding**: Pairs with a similarity score below `--alpha` are discarded.
 
-#### Scoring Metrics
+#### Understanding the Reports
 
-**Symmetric Report (Jaccard Index)**
--   Best for measuring general parity between two equal implementations.
--   **Score**: $J(A, B) = \frac{|A \cap B|}{|A \cup B|}$
--    Penalizes both missing features and extra features.
+`adk-scope` can generate three types of reports to help you understand the feature overlap between two languages.
 
-**Directional Report (F1 Score)**
--   Best when checking if a Target implementation covers the Base implementation (e.g., "Is the TS SDK feature-complete vs Python?").
--   **Precision**: $\frac{\text{Matches}}{\text{Total Target Features}}$ (How accurate is the target?)
--   **Recall**: $\frac{\text{Matches}}{\text{Total Base Features}}$ (How complete is the target?)
--   **F1 Score**: Harmonic mean of Precision and Recall. $F1 = 2 \cdot \frac{P \cdot R}{P + R}$
+##### Symmetric Report (`--report-type symmetric`)
+
+This report is best for measuring the general similarity between two feature sets, where neither is considered the "source of truth". It uses the **Jaccard Index** to calculate a global similarity score.
+
+-   **What it measures**: The Jaccard Index measures the similarity between two sets by dividing the size of their intersection by the size of their union. The score ranges from 0% (no similarity) to 100% (identical sets).
+-   **What it means**: A high Jaccard Index indicates that both languages have a very similar set of features, with few features unique to either one. It penalizes both missing and extra features equally.
+
+##### Directional Report (`--report-type directional`)
+
+This report is ideal when you have a "base" or "source of truth" language and you want to measure how well a "target" language conforms to it. It uses **Precision**, **Recall**, and **F1-Score**.
+
+-   **Precision**: Answers the question: *"Of all the features implemented in the target language, how many of them are correct matches to features in the base language?"* A low score indicates the target has many extra features not present in the base.
+-   **Recall**: Answers the question: *"Of all the features that should be in the target language (i.e., all features in the base), how many were actually found?"* A low score indicates the target is missing many features from the base.
+-   **F1-Score**: The harmonic mean of Precision and Recall, providing a single score that balances both. A high F1-Score indicates the target is a close match to the base, having most of the required features and not too many extra ones.
+
+##### Raw Report (`--report-type raw`)
+
+This report provides a simple CSV output of all features (matched and unmatched) from both the base and target registries. It is useful for programmatic analysis or for importing the data into other tools.$
 
 ## Development
 

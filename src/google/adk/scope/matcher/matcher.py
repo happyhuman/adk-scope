@@ -195,7 +195,9 @@ def match_registries(
     total_target_features = len(target_registry.features)
 
     if report_type == "raw":
-        return _generate_raw_report(all_modules, features_base, features_target, alpha)
+        return _generate_raw_report(
+            base_registry, target_registry, all_modules, features_base, features_target, alpha
+        )
 
     return _generate_markdown_report(
         base_registry,
@@ -209,15 +211,20 @@ def match_registries(
 
 
 def _generate_raw_report(
+    base_registry: features_pb2.FeatureRegistry,
+    target_registry: features_pb2.FeatureRegistry,
     all_modules: List[str],
     features_base: Dict[str, List[features_pb2.Feature]],
     features_target: Dict[str, List[features_pb2.Feature]],
     alpha: float,
 ) -> MatchResult:
     """Generates a raw CSV report."""
+    base_code = get_language_code(base_registry.language)
+    target_code = get_language_code(target_registry.language)
     csv_header = (
-        "base_namespace,base_member_of,base_name,target_namespace,"
-        "target_member_of,target_name,type,score"
+        f"{base_code}_namespace,{base_code}_member_of,{base_code}_name,"
+        f"{target_code}_namespace,{target_code}_member_of,{target_code}_name,"
+        "type,score"
     )
     csv_lines = [csv_header]
 
@@ -362,7 +369,11 @@ def _generate_markdown_report(
         parity_score = (
             total_solid_matches / union_size if union_size > 0 else 1.0
         )
-        global_stats = f"**Global Jaccard Index:** {parity_score:.2%}"
+        global_stats = (
+            f"**Jaccard Index:** {parity_score:.2%}\n\n"
+            "> The Jaccard Index measures the similarity between the two feature sets. "
+            "A score of 100% indicates that both languages have identical features."
+        )
     else:
         precision = stats.calculate_precision(
             total_solid_matches, total_target_features
@@ -377,7 +388,10 @@ def _generate_markdown_report(
             "|---|---|\n"
             f"| **Precision** | {precision:.2%} |\n"
             f"| **Recall** | {recall:.2%} |\n"
-            f"| **Global F1 Score** | {parity_score:.2%} |"
+            f"| **F1 Score** | {parity_score:.2%} |\n\n"
+            "> **Precision**: Of all features in the target, how many are correct matches to the base? (High score = low number of extra features in target)\n\n"
+            "> **Recall**: Of all features in the base, how many were found in the target? (High score = low number of missing features in target)\n\n"
+            "> **F1 Score**: A weighted average of Precision and Recall, providing a single measure of how well the target feature set matches the base."
         )
 
     master_lines[global_score_idx] = global_stats

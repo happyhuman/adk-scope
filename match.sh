@@ -61,7 +61,12 @@ BASE_LANG=$(get_lang_code "$BASE_LANG_RAW")
 TARGET_LANG=$(get_lang_code "$TARGET_LANG_RAW")
 
 # Construct filename
-OUTPUT_FILENAME="${BASE_LANG}_${TARGET_LANG}_${REPORT_TYPE}.md"
+if [ "$REPORT_TYPE" == "raw" ]; then
+    EXTENSION="csv"
+else
+    EXTENSION="md"
+fi
+OUTPUT_FILENAME="${BASE_LANG}_${TARGET_LANG}_${REPORT_TYPE}.${EXTENSION}"
 FULL_OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
 
 # Determine the directory where this script is located
