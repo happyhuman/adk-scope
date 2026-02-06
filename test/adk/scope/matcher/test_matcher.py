@@ -2,7 +2,6 @@ import os
 import tempfile
 import unittest
 from unittest.mock import patch
-
 from google.adk.scope import features_pb2
 from google.adk.scope.matcher import matcher
 
@@ -394,7 +393,7 @@ class TestMatcher(unittest.TestCase):
             mock_process.return_value = {
                 "solid_matches_count": 1,
                 "score": 1.0,
-                "row_content": "| py, ts | `n1` | 1 | 100.00% | ✅ | [View Details]({modules_dir}/n1.md) |",
+                "row_content": "| py, ts | `n1` | 1 | 100.00% | ✅ | n1.md |",
                 "module_filename": "n1.md",
                 "module_content": "# Module: `n1`",
             }

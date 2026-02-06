@@ -193,12 +193,6 @@ def match_registries(
             set(features_base.keys()) | set(features_target.keys())
         )
 
-    # Global Stats using Set logic for Jaccard/F1
-    # We will accumulate counts as we process modules
-    total_solid_matches = 0
-    total_base_features = len(base_registry.features)
-    total_target_features = len(target_registry.features)
-
     if report_type == "raw":
         return _generate_raw_report(
             base_registry,
@@ -256,7 +250,7 @@ def _generate_raw_report(
         if s is None:
             return ""
         if "," in s or '"' in s or "\n" in s:
-            return f'"{s.replace("\"", "\"\"")}"'
+            return '"{}"'.format(s.replace('"', '""'))
         return s
 
     for module in all_modules:
@@ -294,16 +288,16 @@ def _generate_raw_report(
             b_ns, b_mem, b_name = get_feature_cols(f_base)
             f_type = get_type_display_name(f_base)
             csv_lines.append(
-                f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},,,,"
-                f"{escape_csv(f_type)},0.0000"
+                f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
+                f",,,{escape_csv(f_type)},0.0000"
             )
 
         for f_target in unmatched_target:
             t_ns, t_mem, t_name = get_feature_cols(f_target)
             f_type = get_type_display_name(f_target)
             csv_lines.append(
-                f",,,{escape_csv(t_ns)},{escape_csv(t_mem)},{escape_csv(t_name)},"
-                f"{escape_csv(f_type)},0.0000"
+                f",,,{escape_csv(t_ns)},{escape_csv(t_mem)},"
+                f"{escape_csv(t_name)},{escape_csv(f_type)},0.0000"
             )
 
     return MatchResult(master_content="\n".join(csv_lines), module_files={})
@@ -329,7 +323,8 @@ def _generate_markdown_report(
             f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "",
             f"**Base:** {base_registry.language} ({base_registry.version})",
-            f"**Target:** {target_registry.language} ({target_registry.version})",
+            f"**Target:** {target_registry.language}"
+            f" ({target_registry.version})",
         ]
     )
 
@@ -383,8 +378,9 @@ def _generate_markdown_report(
         )
         global_stats = (
             f"**Jaccard Index:** {parity_score:.2%}\n\n"
-            "> The Jaccard Index measures the similarity between the two feature sets. "
-            "A score of 100% indicates that both languages have identical features."
+            "> The Jaccard Index measures the similarity between the "
+            "two feature sets. A score of 100% indicates that both languages "
+            "have identical features."
         )
     else:
         precision = stats.calculate_precision(
@@ -401,9 +397,15 @@ def _generate_markdown_report(
             f"| **Precision** | {precision:.2%} |\n"
             f"| **Recall** | {recall:.2%} |\n"
             f"| **F1 Score** | {parity_score:.2%} |\n\n"
-            "> **Precision**: Of all features in the target, how many are correct matches to the base? (High score = low number of extra features in target)\n\n"
-            "> **Recall**: Of all features in the base, how many were found in the target? (High score = low number of missing features in target)\n\n"
-            "> **F1 Score**: A weighted average of Precision and Recall, providing a single measure of how well the target feature set matches the base."
+            "> **Precision**: Of all features in the target, how many are "
+            "correct matches to the base? (High score = low number of extra "
+            "features in target)\n\n"
+            "> **Recall**: Of all features in the base, how many were found in "
+            "the target? (High score = low number of missing features in "
+            "target)\n\n"
+            "> **F1 Score**: A weighted average of Precision and Recall, "
+            "providing a single measure of how well the target feature set "
+            "matches the base."
         )
 
     master_lines[global_score_idx] = global_stats
@@ -458,9 +460,15 @@ def _process_module(
         if mod_target_count > 0:
             adk_parts.append(target_lang_code)
         adk_value = ", ".join(adk_parts)
-        row_content = f"| {adk_value} | `{module}` | {mod_base_count} | {mod_score:.2%} | {status_icon} | {details_link} |"
+        row_content = (
+            f"| {adk_value} | `{module}` | {mod_base_count} | {mod_score:.2%} |"
+            f" {status_icon} | {details_link} |"
+        )
     else:
-        row_content = f"| `{module}` | {mod_base_count} | {mod_score:.2%} | {status_icon} | {details_link} |"
+        row_content = (
+            f"| `{module}` | {mod_base_count} | {mod_score:.2%} | {status_icon}"
+            f" | {details_link} |"
+        )
 
     # Module Content
     mod_lines = [
@@ -495,7 +503,8 @@ def _process_module(
 
     if solid_matches:
         mod_lines.append(
-            f"### ✅ {'Solid' if report_type == 'symmetric' else 'Matched'} Features"
+            f"### ✅ {'Solid' if report_type == 'symmetric' else 'Matched'}"
+            " Features"
         )
         mod_lines.extend(
             [
@@ -505,7 +514,9 @@ def _process_module(
         )
         mod_lines.extend(
             [
-                f"| {get_type_display_name(f_base)} | `{format_feature(f_base)}` | `{format_feature(f_target)}` | {score:.2f} |"
+                f"| {get_type_display_name(f_base)} |"
+                f" `{format_feature(f_base)}`"
+                f" | `{format_feature(f_target)}` | {score:.2f} |"
                 for f_base, f_target, score in solid_matches
             ]
         )
@@ -515,13 +526,16 @@ def _process_module(
         mod_lines.extend(
             [
                 "### ⚠️ Potential Matches",
-                "| Type | Base Feature | Closest Target Candidate | Similarity |",
+                "| Type | Base Feature | Closest Target Candidate"
+                " | Similarity |",
                 "|---|---|---|---|",
             ]
         )
         mod_lines.extend(
             [
-                f"| {get_type_display_name(f_base)} | `{format_feature(f_base)}` | `{format_feature(f_target)}` | {score:.2f} |"
+                f"| {get_type_display_name(f_base)} |"
+                f" `{format_feature(f_base)}`"
+                f" | `{format_feature(f_target)}` | {score:.2f} |"
                 for f_base, f_target, score in potential_matches
             ]
         )
