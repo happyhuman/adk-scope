@@ -2,14 +2,14 @@ import argparse
 import dataclasses
 import logging
 import sys
-from datetime import datetime
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
-from jellyfish import jaro_winkler_similarity
 
 import numpy as np
 from google.protobuf import text_format
+from jellyfish import jaro_winkler_similarity
 from scipy.optimize import linear_sum_assignment
 
 from google.adk.scope import features_pb2
@@ -189,25 +189,25 @@ class ReportGenerator:
         self.features_target = _group_features_by_module(target_registry)
         _fuzzy_match_namespaces(self.features_base, self.features_target)
         self.alpha = alpha
-    
+
     def generate_report(self, report_type) -> MatchResult:
         """Generates report."""
         if report_type == "raw":
             return self.generate_raw_report()
-        elif report_type == "directional":  
+        elif report_type == "directional":
             return self.generate_directional_report()
         elif report_type == "symmetric":
             return self.generate_symmetric_report()
         else:
             raise ValueError(f"Unknown report type: {report_type}")
-    
+
     def generate_raw_report(self) -> MatchResult:
         """Generates a raw CSV report."""
         base_code = get_language_code(self.base_registry.language)
         target_code = get_language_code(self.target_registry.language)
         all_modules = sorted(
             set(self.features_base.keys()) | set(self.features_target.keys())
-        )        
+        )
         csv_header = (
             f"{base_code}_namespace,{base_code}_member_of,{base_code}_name,"
             f"{target_code}_namespace,{target_code}_member_of,{target_code}_name,"
@@ -229,7 +229,7 @@ class ReportGenerator:
             name = f.original_name or f.normalized_name or ""
             return ns, mem, name
 
-        def escape_csv(s):
+        def esc_csv(s):
             if s is None:
                 return ""
             if "," in s or '"' in s or "\n" in s:
@@ -252,9 +252,9 @@ class ReportGenerator:
                 t_ns, t_mem, t_name = get_feature_cols(f_target)
                 f_type = get_type_display_name(f_base)
                 csv_lines.append(
-                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
-                    f"{escape_csv(t_ns)},{escape_csv(t_mem)},{escape_csv(t_name)},"
-                    f"{escape_csv(f_type)},{score:.4f}"
+                    f"{esc_csv(b_ns)},{esc_csv(b_mem)},{esc_csv(b_name)},"
+                    f"{esc_csv(t_ns)},{esc_csv(t_mem)},{esc_csv(t_name)},"
+                    f"{esc_csv(f_type)},{score:.4f}"
                 )
 
             for f_base, f_target, score in potential_matches:
@@ -262,25 +262,25 @@ class ReportGenerator:
                 t_ns, t_mem, t_name = get_feature_cols(f_target)
                 f_type = get_type_display_name(f_base)
                 csv_lines.append(
-                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
-                    f"{escape_csv(t_ns)},{escape_csv(t_mem)},{escape_csv(t_name)},"
-                    f"{escape_csv(f_type)},{score:.4f}"
+                    f"{esc_csv(b_ns)},{esc_csv(b_mem)},{esc_csv(b_name)},"
+                    f"{esc_csv(t_ns)},{esc_csv(t_mem)},{esc_csv(t_name)},"
+                    f"{esc_csv(f_type)},{score:.4f}"
                 )
 
             for f_base in unmatched_base:
                 b_ns, b_mem, b_name = get_feature_cols(f_base)
                 f_type = get_type_display_name(f_base)
                 csv_lines.append(
-                    f"{escape_csv(b_ns)},{escape_csv(b_mem)},{escape_csv(b_name)},"
-                    f",,,{escape_csv(f_type)},0.0000"
+                    f"{esc_csv(b_ns)},{esc_csv(b_mem)},{esc_csv(b_name)},"
+                    f",,,{esc_csv(f_type)},0.0000"
                 )
 
             for f_target in unmatched_target:
                 t_ns, t_mem, t_name = get_feature_cols(f_target)
                 f_type = get_type_display_name(f_target)
                 csv_lines.append(
-                    f",,,{escape_csv(t_ns)},{escape_csv(t_mem)},"
-                    f"{escape_csv(t_name)},{escape_csv(f_type)},0.0000"
+                    f",,,{esc_csv(t_ns)},{esc_csv(t_mem)},"
+                    f"{esc_csv(t_name)},{esc_csv(f_type)},0.0000"
                 )
 
         return MatchResult(master_content="\n".join(csv_lines), module_files={})
@@ -295,9 +295,14 @@ class ReportGenerator:
                 f"# Feature Matching Report: {title_suffix}",
                 f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 "",
-                f"**Base:** {self.base_registry.language} ({self.base_registry.version})",
-                f"**Target:** {self.target_registry.language}"
-                f" ({self.target_registry.version})",
+                (
+                    f"**Base:** {self.base_registry.language}"
+                    f" ({self.base_registry.version})"
+                ),
+                (
+                    f"**Target:** {self.target_registry.language}"
+                    f" ({self.target_registry.version})"
+                ),
             ]
         )
 
@@ -332,7 +337,9 @@ class ReportGenerator:
             total_solid_matches += results["solid_matches_count"]
             module_rows.append((results["score"], results["row_content"]))
             if results.get("module_filename"):
-                module_files[results["module_filename"]] = results["module_content"]
+                module_files[results["module_filename"]] = results[
+                    "module_content"
+                ]
 
         module_rows.sort(key=lambda x: x[0], reverse=True)
         master_lines.extend([row for _, row in module_rows])
@@ -384,9 +391,17 @@ class ReportGenerator:
                 f"# Feature Matching Report: {title_suffix}",
                 f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 "",
-                f"**Base:** {self.base_registry.language} ({self.base_registry.version})",
-                f"**Target:** {self.target_registry.language}"
-                f" ({self.target_registry.version})",
+                "| Registry | Language | Version |",
+                "| :--- | :--- | :--- |",
+                (
+                    f"| **Base** | {self.base_registry.language} |"
+                    f" {self.base_registry.version} |"
+                ),
+                (
+                    f"| **Target** | {self.target_registry.language} |"
+                    f" {self.target_registry.version} |"
+                ),
+                "",
             ]
         )
 
@@ -422,7 +437,9 @@ class ReportGenerator:
             total_solid_matches += results["solid_matches_count"]
             module_rows.append((results["score"], results["row_content"]))
             if results.get("module_filename"):
-                module_files[results["module_filename"]] = results["module_content"]
+                module_files[results["module_filename"]] = results[
+                    "module_content"
+                ]
 
         module_rows.sort(key=lambda x: x[0], reverse=True)
         master_lines.extend([row for _, row in module_rows])
