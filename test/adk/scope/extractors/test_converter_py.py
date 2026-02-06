@@ -821,8 +821,8 @@ class TestNodeProcessor(unittest.TestCase):
         node = self.create_mock_node(
             "function_definition", children=[name, body]
         )
-        node.child_by_field_name.side_effect = (
-            lambda n: name if n == "name" else (body if n == "body" else None)
+        node.child_by_field_name.side_effect = lambda n: (
+            name if n == "name" else (body if n == "body" else None)
         )
 
         result = self.processor.process(node, self.file_path, self.repo_root)

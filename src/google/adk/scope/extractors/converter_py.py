@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 class NodeProcessor:
     def __init__(self):
         self.normalizer = TypeNormalizer()
+
     """Process Tree-sitter nodes into Feature objects."""
 
     def process(
@@ -360,7 +361,7 @@ class NodeProcessor:
 
         normalized_strings = []
         for t in types:
-            normalized_strings.extend(self.normalizer.normalize(t, 'python'))
+            normalized_strings.extend(self.normalizer.normalize(t, "python"))
         # Unique
         normalized_strings = sorted(list(set(normalized_strings)))
         if not normalized_strings:
@@ -407,7 +408,7 @@ class NodeProcessor:
         return_type_node = node.child_by_field_name("return_type")
         if return_type_node:
             raw = return_type_node.text.decode("utf-8")
-            normalized = self.normalizer.normalize(raw, 'python')
+            normalized = self.normalizer.normalize(raw, "python")
             return [raw], normalized
         return [], []
 

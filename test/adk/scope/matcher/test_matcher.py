@@ -100,7 +100,7 @@ class TestMatcher(unittest.TestCase):
             normalized_namespace="n_same",
             type=features_pb2.Feature.Type.INSTANCE_METHOD,
         )
-        
+
         # f_near_base & f_near_target are a near miss
         # (different names, same structural namespace/class)
         # Using different return types and different enough names to
@@ -152,12 +152,12 @@ class TestMatcher(unittest.TestCase):
             base_registry, target_registry, 0.9, report_type="symmetric"
         )
         report_sym = result_sym.master_content
-        
+
         # 1. Verify Master Report Structure
         self.assertIn("# Feature Matching Report: Symmetric", report_sym)
-        self.assertIn("**Global Jaccard Index:** 25.00%", report_sym)
+        self.assertIn("**Jaccard Index:** 25.00%", report_sym)
         self.assertIn("## Module Summary", report_sym)
-        
+
         # Check for module entry in master summary
         self.assertIn("| `n_same` |", report_sym)
         self.assertIn("[View Details]({modules_dir}/n_same.md)", report_sym)
@@ -165,26 +165,26 @@ class TestMatcher(unittest.TestCase):
         # 2. Verify Module Content
         self.assertIn("n_same.md", result_sym.module_files)
         module_content = result_sym.module_files["n_same.md"]
-        
+
         self.assertIn("# Module: `n_same`", module_content)
         self.assertIn("**Features:** 3", module_content)
-        
+
         # Solid Matches
         self.assertIn("### ✅ Solid Features", module_content)
         self.assertIn(
             "| Type | Base Feature | Target Feature | Similarity Score |",
-            module_content
+            module_content,
         )
         self.assertIn(
             "| method | `BaseClass.fSameBase` | `TargetClass.fSameTarget` |",
-            module_content
+            module_content,
         )
-        
+
         # Potential Matches (formerly Near Misses)
         self.assertIn("### ⚠️ Potential Matches", module_content)
         self.assertIn(
             "| Type | Base Feature | Closest Target Candidate | Similarity |",
-            module_content
+            module_content,
         )
         self.assertIn(
             "| method | `base_member.base_name` | "
@@ -204,28 +204,28 @@ class TestMatcher(unittest.TestCase):
             base_registry, target_registry, 0.9, report_type="directional"
         )
         report_dir = result_dir.master_content
-        
-        self.assertIn("| **Global F1 Score** | 40.00% |", report_dir)
+
+        self.assertIn("| **F1 Score** | 40.00% |", report_dir)
         self.assertIn("n_same.md", result_dir.module_files)
-        
+
         mod_dir_content = result_dir.module_files["n_same.md"]
 
         # Solid Matches
         self.assertIn("### ✅ Matched Features", mod_dir_content)
         self.assertIn(
             "| Type | Base Feature | Target Feature | Similarity Score |",
-            mod_dir_content
+            mod_dir_content,
         )
         self.assertIn(
             "| method | `BaseClass.fSameBase` | `TargetClass.fSameTarget` |",
-            mod_dir_content
+            mod_dir_content,
         )
 
         # Potential Matches
         self.assertIn("### ⚠️ Potential Matches", mod_dir_content)
         self.assertIn(
             "| Type | Base Feature | Closest Target Candidate | Similarity |",
-            mod_dir_content
+            mod_dir_content,
         )
         self.assertIn(
             "| method | `base_member.base_name` | "
@@ -233,7 +233,6 @@ class TestMatcher(unittest.TestCase):
             mod_dir_content,
         )
 
-        
         # Unmatched / Gaps (in 'stuff' module)
         self.assertIn("stuff.md", result_dir.module_files)
         stuff_dir_content = result_dir.module_files["stuff.md"]
@@ -253,16 +252,16 @@ class TestMatcher(unittest.TestCase):
         base.features.append(f1)
         target = features_pb2.FeatureRegistry(language="TS", version="2")
         target.features.append(f1)
-        
+
         result = matcher.match_registries(base, target, 0.9, report_type="raw")
         csv_content = result.master_content
-        
+
         expected_header = (
-            "base_namespace,base_member_of,base_name,target_namespace,"
-            "target_member_of,target_name,type,score"
+            "py_namespace,py_member_of,py_name,ts_namespace,"
+            "ts_member_of,ts_name,type,score"
         )
         self.assertIn(expected_header, csv_content)
-        
+
         # Check for solid match line
         # f1 has: ns=pkg, mem=MyClass, name=f_same
         # Match should have same values for base and target
@@ -286,16 +285,12 @@ class TestMatcher(unittest.TestCase):
         self.assertEqual(len(result["module.one"]), 2)
         self.assertEqual(len(result["module.two"]), 1)
 
-
     def test_fuzzy_match_namespaces(self):
-        features_base = {
-            "module.one": [],
-            "module.two": []
-        }
+        features_base = {"module.one": [], "module.two": []}
         features_target = {
             "module.one": [features_pb2.Feature(original_name="f1_target")],
             "module.ones": [features_pb2.Feature(original_name="f4")],
-            "module.three": [features_pb2.Feature(original_name="f5")]
+            "module.three": [features_pb2.Feature(original_name="f5")],
         }
 
         matcher._fuzzy_match_namespaces(features_base, features_target)
@@ -304,9 +299,8 @@ class TestMatcher(unittest.TestCase):
         self.assertIn("module.two", features_target)
         self.assertNotIn("module.ones", features_target)
         self.assertNotIn("module.three", features_target)
-        self.assertEqual(len(features_target["module.one"]), 2)
-        self.assertEqual(len(features_target["module.two"]), 1)
-
+        self.assertEqual(len(features_target["module.one"]), 3)
+        self.assertEqual(len(features_target["module.two"]), 0)
 
     def test_process_module(self):
         """Tests the end-to-end processing of a single module."""
@@ -348,7 +342,6 @@ class TestMatcher(unittest.TestCase):
             self.assertIn("# Module: `n1`", result["module_content"])
             self.assertIn("### ✅ Solid Features", result["module_content"])
 
-
     def test_generate_raw_report(self):
         """Tests the raw CSV report generation."""
         f_base = features_pb2.Feature(
@@ -359,25 +352,37 @@ class TestMatcher(unittest.TestCase):
             type=features_pb2.Feature.Type.FUNCTION,
         )
 
+        base_registry = features_pb2.FeatureRegistry(
+            language="Python", version="1.0.0"
+        )
+        target_registry = features_pb2.FeatureRegistry(
+            language="TypeScript", version="2.0.0"
+        )
+
         with patch(
             "google.adk.scope.matcher.matcher.match_features"
         ) as mock_match:
             mock_match.return_value = []  # No matches for simplicity
 
             result = matcher._generate_raw_report(
+                base_registry=base_registry,
+                target_registry=target_registry,
                 all_modules=["n1"],
                 features_base={"n1": [f_base]},
                 features_target={"n1": []},
                 alpha=0.9,
             )
 
-            self.assertIn("base_namespace,base_member_of,base_name", result.master_content)
+            self.assertIn(
+                "py_namespace,py_member_of,py_name", result.master_content
+            )
             self.assertIn("n1,c1,f1_base", result.master_content)
-
 
     def test_generate_markdown_report(self):
         """Tests the markdown report generation."""
-        base_registry = features_pb2.FeatureRegistry(language="Python", version="1.0.0")
+        base_registry = features_pb2.FeatureRegistry(
+            language="Python", version="1.0.0"
+        )
         target_registry = features_pb2.FeatureRegistry(
             language="TypeScript", version="2.0.0"
         )
@@ -403,10 +408,23 @@ class TestMatcher(unittest.TestCase):
                 report_type="symmetric",
             )
 
-            self.assertIn("# Feature Matching Report: Symmetric", result.master_content)
+            self.assertIn(
+                "# Feature Matching Report: Symmetric", result.master_content
+            )
             self.assertIn("## Module Summary", result.master_content)
             self.assertIn("| `n1` |", result.master_content)
             self.assertIn("n1.md", result.module_files)
+
+    def test_fuzzy_match_namespaces_empty_base(self):
+        features_base = {}
+        features_target = {
+            "module.one": [features_pb2.Feature(original_name="f1")]
+        }
+
+        matcher._fuzzy_match_namespaces(features_base, features_target)
+
+        self.assertIn("module.one", features_target)
+        self.assertEqual(len(features_target["module.one"]), 1)
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ Unified type normalization for ADK Scope.
 import re
 from typing import List
 
+
 def normalize_name(name: str) -> str:
     """Convert name to snake_case (e.g. CamelCase -> camel_case)."""
     name = name.replace("-", "_")
@@ -17,9 +18,9 @@ class TypeNormalizer:
 
     def normalize(self, type_name: str, language: str) -> List[str]:
         """Normalize a type name for a given language."""
-        if language == 'python':
+        if language == "python":
             return self._normalize_py_type(type_name)
-        elif language == 'typescript':
+        elif language == "typescript":
             return self._normalize_ts_type(type_name)
         # Add placeholders for future languages like 'java' and 'go'
         # Fallback for unknown languages: only normalize if it's a known simple
@@ -89,8 +90,14 @@ class TypeNormalizer:
             if base == "Promise":
                 return self._normalize_ts_type(inner)
             if base in (
-                "Array", "ReadonlyArray", "Generator", "AsyncGenerator",
-                "Iterable", "Iterator", "AsyncIterable", "AsyncIterator"
+                "Array",
+                "ReadonlyArray",
+                "Generator",
+                "AsyncGenerator",
+                "Iterable",
+                "Iterator",
+                "AsyncIterable",
+                "AsyncIterator",
             ):
                 return ["LIST"]
             if base == "Map":
@@ -131,8 +138,16 @@ class TypeNormalizer:
         if t == "none":
             return "null"
         if t in (
-            "list", "array", "slice", "vector", "generator", "asyncgenerator",
-            "iterable", "iterator", "asynciterable", "asynciterator"
+            "list",
+            "array",
+            "slice",
+            "vector",
+            "generator",
+            "asyncgenerator",
+            "iterable",
+            "iterator",
+            "asynciterable",
+            "asynciterator",
         ):
             return "LIST"
         if t in ("set",):

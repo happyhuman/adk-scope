@@ -234,7 +234,7 @@ class TestSimilarityScorer(unittest.TestCase):
             normalized_namespace="my_module",
             type=features_pb.Feature.Type.CONSTRUCTOR,
         )
-        
+
         # Despite name difference, should score very highly due to weight shift
         score = self.scorer.get_similarity_score(c1, c2)
         self.assertGreater(score, 0.9)
@@ -245,7 +245,7 @@ class TestSimilarityScorer(unittest.TestCase):
         """
         f1 = features_pb.Feature(
             normalized_name="myFunction",
-            normalized_member_of="SomeClass", # Completely diff member_of
+            normalized_member_of="SomeClass",  # Completely diff member_of
             normalized_namespace="my_module",
             type=features_pb.Feature.Type.FUNCTION,
         )

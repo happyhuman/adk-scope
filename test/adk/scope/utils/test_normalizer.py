@@ -1,6 +1,7 @@
 import unittest
 from google.adk.scope.utils.normalizer import TypeNormalizer, normalize_name
 
+
 class TestStrings(unittest.TestCase):
     def test_normalize_name(self):
         # CamelCase
@@ -43,8 +44,10 @@ class TestTypeNormalizer(unittest.TestCase):
         self.assertEqual(self.normalizer.normalize("set", "python"), ["SET"])
         self.assertEqual(self.normalizer.normalize("None", "python"), ["null"])
         self.assertEqual(self.normalizer.normalize("any", "python"), ["OBJECT"])
-        self.assertEqual(self.normalizer.normalize(
-            "Optional[str]", "python"), ["STRING", "null"])
+        self.assertEqual(
+            self.normalizer.normalize("Optional[str]", "python"),
+            ["STRING", "null"],
+        )
         self.assertEqual(
             self.normalizer.normalize("Union[str, int]", "python"),
             ["STRING", "NUMBER"],
@@ -73,8 +76,10 @@ class TestTypeNormalizer(unittest.TestCase):
         self.assertEqual(
             self.normalizer.normalize("Array<string>", "typescript"), ["LIST"]
         )
-        self.assertEqual(self.normalizer.normalize(
-            "Map<string, number>", "typescript"), ["MAP"])
+        self.assertEqual(
+            self.normalizer.normalize("Map<string, number>", "typescript"),
+            ["MAP"],
+        )
         self.assertEqual(
             self.normalizer.normalize("Set<any>", "typescript"), ["SET"]
         )
@@ -104,8 +109,10 @@ class TestTypeNormalizer(unittest.TestCase):
         self.assertEqual(
             self.normalizer.normalize("unsupported_type", "python"), ["OBJECT"]
         )
-        self.assertEqual(self.normalizer.normalize(
-            "unsupported_type", "typescript"), ["OBJECT"])
+        self.assertEqual(
+            self.normalizer.normalize("unsupported_type", "typescript"),
+            ["OBJECT"],
+        )
         self.assertEqual(
             self.normalizer.normalize("str", "unsupported_language"), ["STRING"]
         )
@@ -115,5 +122,5 @@ class TestTypeNormalizer(unittest.TestCase):
         )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

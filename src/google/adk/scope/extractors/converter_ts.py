@@ -557,8 +557,8 @@ class NodeProcessor:
     ) -> feature_pb2.Param:
         normalized_strings = []
         for t in types:
-                normalized_types = self.normalizer.normalize(t, "typescript")
-                normalized_strings.extend(normalized_types)
+            normalized_types = self.normalizer.normalize(t, "typescript")
+            normalized_strings.extend(normalized_types)
 
         normalized_strings = sorted(list(set(normalized_strings)))
         if not normalized_strings:
@@ -602,8 +602,6 @@ class NodeProcessor:
 
         return "obj"
 
-
-
     def _extract_return_types(self, node: Node) -> Tuple[List[str], List[str]]:
         return_type_node = node.child_by_field_name("return_type")
         if return_type_node:
@@ -616,7 +614,7 @@ class NodeProcessor:
             # logically T for async?
             # Schema says "original_return_types".
             # normalized usually unwrap?
-            return [raw], self.normalizer.normalize(raw, 'typescript')
+            return [raw], self.normalizer.normalize(raw, "typescript")
         return [], []
 
     def _is_blocking(self, node: Node, return_types: List[str]) -> bool:

@@ -146,24 +146,29 @@ def _fuzzy_match_namespaces(
     from jellyfish import jaro_winkler_similarity
 
     base_namespaces = set(features_base.keys())
-    target_remap = {}
-    remapped_features = defaultdict(list)
+    remapped_features = defaultdict(list, {k: [] for k in features_base})
 
     for t_ns, features in features_target.items():
         if t_ns in base_namespaces:
             remapped_features[t_ns].extend(features)
             continue
 
+        if not base_namespaces:
+            # No base to match against, so keep original target namespace
+            remapped_features[t_ns].extend(features)
+            continue
+
         best_match, best_score = max(
-            ((b_ns, jaro_winkler_similarity(t_ns, b_ns)) for b_ns in base_namespaces),
+            (
+                (b_ns, jaro_winkler_similarity(t_ns, b_ns))
+                for b_ns in base_namespaces
+            ),
             key=lambda item: item[1],
             default=(None, 0.0),
         )
 
         if best_score > 0.8 and best_match:
             remapped_features[best_match].extend(features)
-        else:
-            remapped_features[t_ns].extend(features)
 
     features_target.clear()
     features_target.update(remapped_features)
@@ -176,7 +181,7 @@ def match_registries(
     report_type: str = "symmetric",
 ) -> MatchResult:
     """Matches features and generates a master report + module sub-reports."""
-    
+
     features_base = _group_features_by_module(base_registry)
     features_target = _group_features_by_module(target_registry)
     _fuzzy_match_namespaces(features_base, features_target)
@@ -196,7 +201,12 @@ def match_registries(
 
     if report_type == "raw":
         return _generate_raw_report(
-            base_registry, target_registry, all_modules, features_base, features_target, alpha
+            base_registry,
+            target_registry,
+            all_modules,
+            features_base,
+            features_target,
+            alpha,
         )
 
     return _generate_markdown_report(
@@ -232,34 +242,34 @@ def _generate_raw_report(
         ns = f.namespace or ""
         if not ns and f.normalized_namespace:
             ns = f.normalized_namespace
-        
+
         mem = f.member_of or ""
         if not mem and f.normalized_member_of:
             mem = f.normalized_member_of
         if mem.lower() == "null":
             mem = ""
-            
+
         name = f.original_name or f.normalized_name or ""
         return ns, mem, name
 
     def escape_csv(s):
         if s is None:
             return ""
-        if ',' in s or '"' in s or '\n' in s:
+        if "," in s or '"' in s or "\n" in s:
             return f'"{s.replace("\"", "\"\"")}"'
         return s
 
     for module in all_modules:
         base_list = features_base.get(module, [])
         target_list = features_target.get(module, [])
-        
+
         solid_matches = match_features(base_list, target_list, alpha)
         beta = max(0.0, alpha - _NEAR_MISS_THRESHOLD)
         potential_matches = match_features(base_list, target_list, beta)
-        
+
         unmatched_base = base_list
         unmatched_target = target_list
-        
+
         for f_base, f_target, score in solid_matches:
             b_ns, b_mem, b_name = get_feature_cols(f_base)
             t_ns, t_mem, t_name = get_feature_cols(f_target)
@@ -313,14 +323,16 @@ def _generate_markdown_report(
 
     master_lines = []
     title_suffix = "Symmetric" if report_type == "symmetric" else "Directional"
-    master_lines.extend([
-        f"# Feature Matching Report: {title_suffix}",
-        f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        "",
-        f"**Base:** {base_registry.language} ({base_registry.version})",
-        f"**Target:** {target_registry.language} ({target_registry.version})",
-    ])
-    
+    master_lines.extend(
+        [
+            f"# Feature Matching Report: {title_suffix}",
+            f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "",
+            f"**Base:** {base_registry.language} ({base_registry.version})",
+            f"**Target:** {target_registry.language} ({target_registry.version})",
+        ]
+    )
+
     global_score_idx = len(master_lines)
     master_lines.append("GLOBAL_SCORE_PLACEHOLDER")
     master_lines.append("")
@@ -382,7 +394,7 @@ def _generate_markdown_report(
             total_solid_matches, total_base_features
         )
         parity_score = stats.calculate_f1(precision, recall)
-        
+
         global_stats = (
             "| Metric | Score |\n"
             "|---|---|\n"
@@ -398,7 +410,7 @@ def _generate_markdown_report(
 
     return MatchResult(
         master_content="\n".join(master_lines).strip(),
-        module_files=module_files
+        module_files=module_files,
     )
 
 
@@ -432,7 +444,9 @@ def _process_module(
         recall = stats.calculate_recall(mod_solid_count, mod_base_count)
         mod_score = stats.calculate_f1(precision, recall)
 
-    status_icon = "✅" if mod_score == 1.0 else "⚠️" if mod_score >= 0.8 else "❌"
+    status_icon = (
+        "✅" if mod_score == 1.0 else "⚠️" if mod_score >= 0.8 else "❌"
+    )
     module_safe_name = module.replace(".", "_")
     module_filename = f"{module_safe_name}.md"
 
@@ -449,43 +463,89 @@ def _process_module(
         row_content = f"| `{module}` | {mod_base_count} | {mod_score:.2%} | {status_icon} | {details_link} |"
 
     # Module Content
-    mod_lines = [f"# Module: `{module}`", "[⬅️ Back to Master Report](../{master_report})", "", f"**Score:** {mod_score:.2%} ({status_icon})"]
+    mod_lines = [
+        f"# Module: `{module}`",
+        "[⬅️ Back to Master Report](../{master_report})",
+        "",
+        f"**Score:** {mod_score:.2%} ({status_icon})",
+    ]
     if report_type == "directional":
-        mod_lines.extend([
-            "| Metric | Score |",
-            "|---|---|",
-            f"| **Precision** | {precision:.2%} |",
-            f"| **Recall** | {recall:.2%} |",
-        ])
+        mod_lines.extend(
+            [
+                "| Metric | Score |",
+                "|---|---|",
+                f"| **Precision** | {precision:.2%} |",
+                f"| **Recall** | {recall:.2%} |",
+            ]
+        )
 
-    mod_total_features = (mod_base_count + mod_target_count - mod_solid_count) if report_type == "symmetric" else mod_base_count
+    mod_total_features = (
+        (mod_base_count + mod_target_count - mod_solid_count)
+        if report_type == "symmetric"
+        else mod_base_count
+    )
     mod_lines.extend(["", f"**Features:** {mod_total_features}", ""])
 
-    solid_matches.sort(key=lambda x: (get_type_priority(x[0]), x[0].normalized_name))
-    potential_matches.sort(key=lambda x: (get_type_priority(x[0]), x[0].normalized_name))
+    solid_matches.sort(
+        key=lambda x: (get_type_priority(x[0]), x[0].normalized_name)
+    )
+    potential_matches.sort(
+        key=lambda x: (get_type_priority(x[0]), x[0].normalized_name)
+    )
 
     if solid_matches:
-        mod_lines.append(f"### ✅ {'Solid' if report_type == 'symmetric' else 'Matched'} Features")
-        mod_lines.extend(["| Type | Base Feature | Target Feature | Similarity Score |", "|---|---|---|---|"])
-        mod_lines.extend([f"| {get_type_display_name(f_base)} | `{format_feature(f_base)}` | `{format_feature(f_target)}` | {score:.2f} |" for f_base, f_target, score in solid_matches])
+        mod_lines.append(
+            f"### ✅ {'Solid' if report_type == 'symmetric' else 'Matched'} Features"
+        )
+        mod_lines.extend(
+            [
+                "| Type | Base Feature | Target Feature | Similarity Score |",
+                "|---|---|---|---|",
+            ]
+        )
+        mod_lines.extend(
+            [
+                f"| {get_type_display_name(f_base)} | `{format_feature(f_base)}` | `{format_feature(f_target)}` | {score:.2f} |"
+                for f_base, f_target, score in solid_matches
+            ]
+        )
         mod_lines.append("")
 
     if potential_matches:
-        mod_lines.extend([
-            "### ⚠️ Potential Matches",
-            "| Type | Base Feature | Closest Target Candidate | Similarity |",
-            "|---|---|---|---|",
-        ])
-        mod_lines.extend([f"| {get_type_display_name(f_base)} | `{format_feature(f_base)}` | `{format_feature(f_target)}` | {score:.2f} |" for f_base, f_target, score in potential_matches])
+        mod_lines.extend(
+            [
+                "### ⚠️ Potential Matches",
+                "| Type | Base Feature | Closest Target Candidate | Similarity |",
+                "|---|---|---|---|",
+            ]
+        )
+        mod_lines.extend(
+            [
+                f"| {get_type_display_name(f_base)} | `{format_feature(f_base)}` | `{format_feature(f_target)}` | {score:.2f} |"
+                for f_base, f_target, score in potential_matches
+            ]
+        )
         mod_lines.append("")
 
     if report_type == "symmetric" and (unmatched_base or unmatched_target):
-        mod_lines.extend(["### ❌ Unmatched Features", "| Missing Feature | Missing In |", "|---|---|"])
-        mod_lines.extend([f"| `{format_feature(f)}` | Target |" for f in unmatched_base])
-        mod_lines.extend([f"| `{format_feature(f)}` | Base |" for f in unmatched_target])
+        mod_lines.extend(
+            [
+                "### ❌ Unmatched Features",
+                "| Missing Feature | Missing In |",
+                "|---|---|",
+            ]
+        )
+        mod_lines.extend(
+            [f"| `{format_feature(f)}` | Target |" for f in unmatched_base]
+        )
+        mod_lines.extend(
+            [f"| `{format_feature(f)}` | Base |" for f in unmatched_target]
+        )
         mod_lines.append("")
     elif report_type == "directional" and unmatched_base:
-        mod_lines.extend(["### ❌ Missing in Target", "| Missing Feature |", "|---|"])
+        mod_lines.extend(
+            ["### ❌ Missing in Target", "| Missing Feature |", "|---|"]
+        )
         mod_lines.extend([f"| `{format_feature(f)}` |" for f in unmatched_base])
         mod_lines.append("")
 

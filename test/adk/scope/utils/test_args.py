@@ -11,43 +11,36 @@ class ArgsTest(unittest.TestCase):
     def test_add_verbose_argument(self):
         parser = argparse.ArgumentParser()
         adk_args.add_verbose_argument(parser)
-        args = parser.parse_args(['--verbose'])
+        args = parser.parse_args(["--verbose"])
         self.assertTrue(args.verbose)
 
-    @mock.patch('logging.basicConfig')
+    @mock.patch("logging.basicConfig")
     def test_configure_logging_verbose(self, mock_basic_config):
         args = argparse.Namespace(verbose=True)
         adk_args.configure_logging(args)
         mock_basic_config.assert_called_once_with(level=logging.DEBUG)
 
-    @mock.patch('logging.basicConfig')
+    @mock.patch("logging.basicConfig")
     def test_configure_logging_default(self, mock_basic_config):
         args = argparse.Namespace(verbose=False)
         adk_args.configure_logging(args)
         mock_basic_config.assert_called_once_with(level=logging.INFO)
 
-    @mock.patch('argparse.ArgumentParser.parse_args')
+    @mock.patch("argparse.ArgumentParser.parse_args")
     def test_parse_args_python(self, mock_parse_args):
         mock_parse_args.return_value = argparse.Namespace(
-            language='py',
-            input_file='test.py',
-            output='out',
-            verbose=False
+            language="py", input_file="test.py", output="out", verbose=False
         )
         parsed_args = adk_args.parse_args()
-        self.assertEqual(parsed_args.language, 'python')
+        self.assertEqual(parsed_args.language, "python")
 
-    @mock.patch('argparse.ArgumentParser.parse_args')
+    @mock.patch("argparse.ArgumentParser.parse_args")
     def test_parse_args_typescript(self, mock_parse_args):
         mock_parse_args.return_value = argparse.Namespace(
-            language='ts',
-            input_file='test.ts',
-            output='out',
-            verbose=False
+            language="ts", input_file="test.ts", output="out", verbose=False
         )
         parsed_args = adk_args.parse_args()
-        self.assertEqual(parsed_args.language, 'typescript')
-
+        self.assertEqual(parsed_args.language, "typescript")
 
     def test_arg_definitions(self):
         # Verify that the parser is set up with correct arguments
@@ -92,5 +85,6 @@ class ArgsTest(unittest.TestCase):
             args, _ = parser_calls[2]
             self.assertEqual(args[0], "--verbose")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

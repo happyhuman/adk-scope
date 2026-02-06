@@ -142,7 +142,7 @@ class TestExtractMain(unittest.TestCase):
         self.configure_args(lang="python", input_file=str(f))
 
         self.mock_py_extractor.extract_features.return_value = [
-            feature_pb2.Feature(original_name='dummy')
+            feature_pb2.Feature(original_name="dummy")
         ]
         self.mock_py_extractor.get_version.return_value = "1.0"
 
@@ -167,7 +167,7 @@ class TestExtractMain(unittest.TestCase):
 
         self.mock_py_extractor.find_files.return_value = [d / "a.py"]
         self.mock_py_extractor.extract_features.return_value = [
-            feature_pb2.Feature(original_name='dummy')
+            feature_pb2.Feature(original_name="dummy")
         ]
         self.mock_py_extractor.get_version.return_value = "1.0"
 
@@ -186,7 +186,7 @@ class TestExtractMain(unittest.TestCase):
 
         self.mock_py_extractor.find_files.return_value = [r / "src" / "a.py"]
         self.mock_py_extractor.extract_features.return_value = [
-            feature_pb2.Feature(original_name='dummy')
+            feature_pb2.Feature(original_name="dummy")
         ]
         self.mock_py_extractor.get_version.return_value = "1.0"
 

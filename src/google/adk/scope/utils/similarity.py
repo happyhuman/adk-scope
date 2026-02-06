@@ -18,6 +18,7 @@ DEFAULT_SIMILARITY_WEIGHTS = {
     "return_type": 0.10,
 }
 
+
 class SimilarityScorer:
     """Calculates a similarity score between two features."""
 
@@ -42,6 +43,7 @@ class SimilarityScorer:
 
     def _fuzzy_type_match(self, types1: list, types2: list) -> float:
         """Calculates a fuzzy similarity score between two lists of types."""
+
         def _to_str_set(type_list):
             res = set()
             for t in type_list:
@@ -54,26 +56,28 @@ class SimilarityScorer:
                 else:
                     res.add(str(t).upper())
             return res
-            
+
         set1 = _to_str_set(types1)
         set2 = _to_str_set(types2)
-        
+
         if not set1 and not set2:
             return 1.0
         if not set1 or not set2:
             return 0.0
-            
+
         if set1 == set2:
             return 1.0
-            
+
         # Check the best match between any pair of types
         best_score = 0.0
         for t1 in set1:
             for t2 in set2:
                 if t1 == t2:
                     score = 1.0
-                elif ({t1, t2} == {"MAP", "OBJECT"} or
-                      {t1, t2} == {"MAP", "ANY"}):
+                elif {t1, t2} == {"MAP", "OBJECT"} or {t1, t2} == {
+                    "MAP",
+                    "ANY",
+                }:
                     score = 0.4
                 elif t1 in ("UNKNOWN", "ANY") or t2 in ("UNKNOWN", "ANY"):
                     score = 0.3
@@ -81,10 +85,10 @@ class SimilarityScorer:
                     score = 0.2
                 else:
                     score = 0.0
-                    
+
                 if score > best_score:
                     best_score = score
-                    
+
         return best_score
 
     def _calculate_param_similarity(
@@ -182,19 +186,22 @@ class SimilarityScorer:
             current_weights["member_of"] += current_weights["name"]
             current_weights["name"] = 0.0
             logger.debug(
-                "Both CONSTRUCTOR. "
-                f"Adjusted weights: {current_weights}"
+                "Both CONSTRUCTOR. " f"Adjusted weights: {current_weights}"
             )
-        elif t1 in (FeatureType.FUNCTION, FeatureType.CLASS_METHOD) and \
-             t2 in (FeatureType.FUNCTION, FeatureType.CLASS_METHOD):
+        elif t1 in (FeatureType.FUNCTION, FeatureType.CLASS_METHOD) and t2 in (
+            FeatureType.FUNCTION,
+            FeatureType.CLASS_METHOD,
+        ):
             current_weights["member_of"] /= 2.0
             current_weights["name"] += current_weights["member_of"]
             logger.debug(
                 "Both FUNCTION/CLASS_METHOD. "
                 f"Adjusted weights: {current_weights}"
             )
-        elif t1 == FeatureType.INSTANCE_METHOD and \
-             t2 == FeatureType.INSTANCE_METHOD:
+        elif (
+            t1 == FeatureType.INSTANCE_METHOD
+            and t2 == FeatureType.INSTANCE_METHOD
+        ):
             logger.debug(
                 "Both INSTANCE_METHOD. "
                 f"Using default weights: {current_weights}"
@@ -202,7 +209,7 @@ class SimilarityScorer:
             pass  # Keep default weights
         else:
             logger.debug(f"Incompatible types: {t1} vs {t2}. Returning 0.0")
-            return 0.0 # Fast out for incompatible types
+            return 0.0  # Fast out for incompatible types
 
         # 2. Similarity Calculations
         scores = {
