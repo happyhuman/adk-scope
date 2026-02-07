@@ -68,12 +68,12 @@ python3 -m google.adk.scope.extractors.python.extractor \
 
 ```
 
-### Feature Matching
+### Feature Matching & Reporting
 
-Once you have extracted features from two languages (e.g., Python and TypeScript), you can compare them using the `match.sh` script.
+Once you have extracted features from two languages (e.g., Python and TypeScript), you can compare them using the `report.sh` script.
 
 ```bash
-./match.sh \
+./report.sh \
   --base output/py.txtpb \
   --target output/ts.txtpb \
   --output output/ \

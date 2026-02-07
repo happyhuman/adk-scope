@@ -20,12 +20,6 @@ from google.adk.scope.utils.similarity import SimilarityScorer
 _NEAR_MISS_THRESHOLD = 0.15
 
 
-@dataclasses.dataclass
-class MatchResult:
-    master_content: str
-    module_files: Dict[str, str]  # filename -> content
-
-
 def _format_feature(f: features_pb2.Feature) -> str:
     name = f.original_name or f.normalized_name
     member = f.member_of
@@ -139,22 +133,6 @@ def fuzzy_match_namespaces(
 
     features_target.clear()
     features_target.update(remapped_features)
-
-
-def match_registries(
-    base_registry: features_pb2.FeatureRegistry,
-    target_registry: features_pb2.FeatureRegistry,
-    alpha: float,
-    report_type: str = "symmetric",
-) -> MatchResult:
-    """Matches features and generates a master report + module sub-reports."""
-    reporter = ReportGenerator(
-        base_registry,
-        target_registry,
-        alpha,
-    )
-
-    return reporter.generate_report(report_type)
 
 
 def process_module(

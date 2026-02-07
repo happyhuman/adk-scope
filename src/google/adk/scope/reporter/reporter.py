@@ -13,12 +13,18 @@ from jellyfish import jaro_winkler_similarity
 from scipy.optimize import linear_sum_assignment
 
 from google.adk.scope import features_pb2
-from google.adk.scope import matcher
+from google.adk.scope.matcher import matcher
 from google.adk.scope.utils import args as adk_args
 from google.adk.scope.utils import stats
 from google.adk.scope.utils.similarity import SimilarityScorer
 
 _NEAR_MISS_THRESHOLD = 0.15
+
+
+@dataclasses.dataclass
+class MatchResult:
+    master_content: str
+    module_files: Dict[str, str]  # filename -> content
 
 
 def _group_features_by_module(
@@ -55,6 +61,22 @@ def _read_feature_registry(file_path: str) -> features_pb2.FeatureRegistry:
     return registry
 
 
+def match_registries(
+    base_registry: features_pb2.FeatureRegistry,
+    target_registry: features_pb2.FeatureRegistry,
+    alpha: float,
+    report_type: str = "symmetric",
+) -> MatchResult:
+    """Matches features and generates a master report + module sub-reports."""
+    reporter = ReportGenerator(
+        base_registry,
+        target_registry,
+        alpha,
+    )
+
+    return reporter.generate_report(report_type)
+
+
 class ReportGenerator:
     def __init__(
         self,
@@ -70,7 +92,7 @@ class ReportGenerator:
         matcher.fuzzy_match_namespaces(self.features_base, self.features_target)
         self.alpha = alpha
 
-    def generate_report(self, report_type) -> matcher.MatchResult:
+    def generate_report(self, report_type) -> MatchResult:
         """Generates report."""
         if report_type == "raw":
             return self.generate_raw_report()
@@ -161,18 +183,18 @@ class ReportGenerator:
 
             for f_target in unmatched_target:
                 t_ns, t_mem, t_name = get_feature_cols(f_target)
-                f_type = get_type_display_name(f_target)
+                f_type = matcher.get_type_display_name(f_target)
                 csv_lines.append(
                     f",,,{esc_csv(t_ns)},{esc_csv(t_mem)},"
                     f"{esc_csv(t_name)},{esc_csv(f_type)},0.0000"
                 )
 
-        return matcher.MatchResult(
+        return MatchResult(
             master_content="\n".join(csv_lines),
             module_files={},
         )
 
-    def generate_directional_report(self) -> matcher.MatchResult:
+    def generate_directional_report(self) -> MatchResult:
         """Generates a directional report."""
         all_modules = sorted(self.features_base.keys())
         master_lines = []
@@ -261,12 +283,12 @@ class ReportGenerator:
 
         master_lines[global_score_idx] = global_stats
 
-        return matcher.MatchResult(
+        return MatchResult(
             master_content="\n".join(master_lines).strip(),
             module_files=module_files,
         )
 
-    def generate_symmetric_report(self) -> matcher.MatchResult:
+    def generate_symmetric_report(self) -> MatchResult:
         """Generates a symmetric report."""
         all_modules = sorted(
             set(self.features_base.keys()) | set(self.features_target.keys())
@@ -349,7 +371,7 @@ class ReportGenerator:
 
         master_lines[global_score_idx] = global_stats
 
-        return matcher.MatchResult(
+        return MatchResult(
             master_content="\n".join(master_lines).strip(),
             module_files=module_files,
         )
@@ -397,7 +419,7 @@ def main():
         logging.error(f"Error reading feature registries: {e}")
         sys.exit(1)
 
-    result = matcher.match_registries(
+    result = match_registries(
         base_registry, target_registry, args.alpha, args.report_type
     )
 
