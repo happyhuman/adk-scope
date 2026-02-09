@@ -43,11 +43,11 @@ class TestTypeNormalizer(unittest.TestCase):
         self.assertEqual(self.normalizer.normalize("list", "python"), ["LIST"])
         self.assertEqual(self.normalizer.normalize("dict", "python"), ["MAP"])
         self.assertEqual(self.normalizer.normalize("set", "python"), ["SET"])
-        self.assertEqual(self.normalizer.normalize("None", "python"), ["null"])
+        self.assertEqual(self.normalizer.normalize("None", "python"), ["NULL"])
         self.assertEqual(self.normalizer.normalize("any", "python"), ["OBJECT"])
         self.assertEqual(
             self.normalizer.normalize("Optional[str]", "python"),
-            ["STRING", "null"],
+            ["STRING", "NULL"],
         )
         self.assertEqual(
             self.normalizer.normalize("Union[str, int]", "python"),
@@ -59,6 +59,14 @@ class TestTypeNormalizer(unittest.TestCase):
         self.assertEqual(
             self.normalizer.normalize("Tuple[str, int]", "python"),
             ["STRING", "NUMBER"],
+        )
+        self.assertEqual(
+            self.normalizer.normalize("str | list[str]", "python"),
+            ["STRING", "LIST"],
+        )
+        self.assertEqual(
+            self.normalizer.normalize("RunConfig | None", "python"),
+            ["OBJECT", "NULL"],
         )
 
     def test_typescript_normalization(self):
@@ -84,7 +92,9 @@ class TestTypeNormalizer(unittest.TestCase):
         self.assertEqual(
             self.normalizer.normalize("Set<any>", "typescript"), ["SET"]
         )
-        self.assertEqual(self.normalizer.normalize("void", "typescript"), [])
+        self.assertEqual(
+            self.normalizer.normalize("void", "typescript"), ["NULL"]
+        )
         self.assertEqual(
             self.normalizer.normalize("any", "typescript"), ["OBJECT"]
         )
@@ -96,6 +106,14 @@ class TestTypeNormalizer(unittest.TestCase):
         self.assertEqual(
             self.normalizer.normalize("string | number", "typescript"),
             ["STRING", "NUMBER"],
+        )
+        self.assertEqual(
+            self.normalizer.normalize("string | null", "typescript"),
+            ["STRING", "NULL"],
+        )
+        self.assertEqual(
+            self.normalizer.normalize("string | undefined", "typescript"),
+            ["STRING", "NULL"],
         )
 
     def test_edge_cases(self):

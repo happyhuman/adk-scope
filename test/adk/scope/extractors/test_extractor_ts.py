@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from google.adk.scope import features_pb2
+
 # Import the module under test
 # We need to make sure the src path is in PYTHONPATH which is handled
 # by test runner usually

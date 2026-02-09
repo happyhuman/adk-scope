@@ -5,10 +5,10 @@ echo "Extracting TypeScript features..."
 ./extract.sh --language typescript --input-repo ../adk-js  ./output
 
 echo "Generating symmetric reports..."
-./match.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type symmetric
+./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type symmetric
 
 echo "Generating directional reports..  ."
-./match.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type directional
+./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type directional
 
 echo "Generating raw reports..."
-./match.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type raw
+./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type raw

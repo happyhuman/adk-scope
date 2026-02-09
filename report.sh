@@ -76,7 +76,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH}"
 
 # Run the python matcher
-python3 "${SCRIPT_DIR}/src/google/adk/scope/matcher/matcher.py" \
+python3 "${SCRIPT_DIR}/src/google/adk/scope/reporter/reporter.py" \
     --base "${BASE_FILE}" \
     --target "${TARGET_FILE}" \
     --output "${FULL_OUTPUT_PATH}" \

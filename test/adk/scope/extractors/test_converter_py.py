@@ -461,10 +461,10 @@ class TestNodeProcessor(unittest.TestCase):
             [feature_pb2.ParamType.OBJECT],
         )
 
-        # b: Optional[int] -> [int, null] -> [INT, null] -> INT (null skipped)
-        self.assertEqual(
+        # b: Optional[int] -> [int, null] -> [INT, NULL]
+        self.assertCountEqual(
             result.parameters[1].normalized_types,
-            [feature_pb2.ParamType.NUMBER],
+            [feature_pb2.ParamType.NUMBER, feature_pb2.ParamType.NULL],
         )
 
     def test_param_empty_name(self):

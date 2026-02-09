@@ -3,8 +3,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from google.adk.scope.extractors.extractor_py import (extract_features,
-                                                      find_files)
+from google.adk.scope.extractors.extractor_py import (
+    extract_features,
+    find_files,
+)
 from google.adk.scope.features_pb2 import Feature
 
 # Mock tree_sitter modules BEFORE importing extractor

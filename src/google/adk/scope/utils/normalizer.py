@@ -47,8 +47,8 @@ class TypeNormalizer:
         if type_name.startswith("Optional[") and type_name.endswith("]"):
             inner = type_name[9:-1]
             result = self._normalize_py_type(inner)
-            if "null" not in result:
-                result.append("null")
+            if "NULL" not in result:
+                result.append("NULL")
             return result
 
         # Handle tuple[A, B] -> [A, B]
@@ -58,6 +58,14 @@ class TypeNormalizer:
             result = []
             for p in parts:
                 result.extend(self._normalize_py_type(p))
+            return self._unique(result)
+
+        # Handle str | list[str]
+        if "|" in type_name:
+            parts = type_name.split("|")
+            result = []
+            for p in parts:
+                result.extend(self._normalize_py_type(p.strip()))
             return self._unique(result)
 
         # Handle other generics like List[int] -> LIST
@@ -73,19 +81,23 @@ class TypeNormalizer:
         if not t:
             return ["OBJECT"]
 
+        if t in ("null", "undefined", "void"):
+            return ["NULL"]
+
         # A | B
         if "|" in t:
-            parts = t.split("|")
-            res = []
-            for p in parts:
-                res.extend(self._normalize_ts_type(p))
-            return res
+            # Split by '|' only at the top level, respecting generics
+            parts = self._split_unions(t)
+            if len(parts) > 1:
+                res = []
+                for p in parts:
+                    res.extend(self._normalize_ts_type(p.strip()))
+                return self._unique(res)
 
         # Generics: Promise<T>, Array<T>
-        if "<" in t and t.endswith(">"):
-            base = t.split("<", 1)[0].strip()
-            # Find matching closing bracket or assumue last
-            inner = t[t.find("<") + 1 : -1].strip()
+        match = re.match(r"([a-zA-Z0-9_]+)<(.+)>$", t)
+        if match:
+            base, inner = match.groups()
 
             if base == "Promise":
                 return self._normalize_ts_type(inner)
@@ -108,6 +120,7 @@ class TypeNormalizer:
             return ["OBJECT"]
 
         t_lower = t.lower()
+
         if t_lower in ("string", "formattedstring", "path"):
             return ["STRING"]
         if t_lower in ("number", "int", "float", "integer", "double"):
@@ -128,15 +141,13 @@ class TypeNormalizer:
             return ["MAP"]
         if t_lower.startswith("set"):
             return ["SET"]
-        if t_lower == "void":
-            return []
 
         return ["OBJECT"]
 
     def _simple_normalize(self, t: str) -> str:
         t = t.lower().strip()
         if t == "none":
-            return "null"
+            return "NULL"
         if t in (
             "list",
             "array",
@@ -195,3 +206,24 @@ class TypeNormalizer:
                 seen.add(x)
                 out.append(x)
         return out
+
+    def _split_unions(self, s: str) -> list[str]:
+        """Split string by |, ignoring nested generics."""
+        parts = []
+        balance = 0
+        current = []
+        for char in s:
+            if char == "<":
+                balance += 1
+                current.append(char)
+            elif char == ">":
+                balance -= 1
+                current.append(char)
+            elif char == "|" and balance == 0:
+                parts.append("".join(current).strip())
+                current = []
+            else:
+                current.append(char)
+        if current:
+            parts.append("".join(current).strip())
+        return parts

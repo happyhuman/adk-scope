@@ -135,22 +135,25 @@ class TestSimilarityScorer(unittest.TestCase):
             "normalized_namespace": "runner",
             "parameters": [
                 features_pb.Param(
-                    normalized_name="user_id", normalized_types=["STRING"]
+                    normalized_name="user_id",
+                    normalized_types=[features_pb.ParamType.STRING],
                 ),
                 features_pb.Param(
-                    normalized_name="session_id", normalized_types=["STRING"]
+                    normalized_name="session_id",
+                    normalized_types=[features_pb.ParamType.STRING],
                 ),
                 features_pb.Param(
-                    normalized_name="new_message", normalized_types=["OBJECT"]
+                    normalized_name="new_message",
+                    normalized_types=[features_pb.ParamType.OBJECT],
                 ),
                 features_pb.Param(
                     normalized_name="state_delta",
-                    normalized_types=["OBJECT"],
+                    normalized_types=[features_pb.ParamType.OBJECT],
                     is_optional=True,
                 ),
                 features_pb.Param(
                     normalized_name="run_config",
-                    normalized_types=["OBJECT"],
+                    normalized_types=[features_pb.ParamType.OBJECT],
                     is_optional=True,
                 ),
             ],
@@ -166,33 +169,35 @@ class TestSimilarityScorer(unittest.TestCase):
             "normalized_namespace": "runners",
             "parameters": [
                 features_pb.Param(
-                    normalized_name="user_id", normalized_types=["STRING"]
+                    normalized_name="user_id",
+                    normalized_types=[features_pb.ParamType.STRING],
                 ),
                 features_pb.Param(
-                    normalized_name="session_id", normalized_types=["STRING"]
+                    normalized_name="session_id",
+                    normalized_types=[features_pb.ParamType.STRING],
                 ),
                 features_pb.Param(
                     normalized_name="invocation_id",
-                    normalized_types=["STRING"],
+                    normalized_types=[features_pb.ParamType.STRING],
                     is_optional=True,
                 ),
                 features_pb.Param(
                     normalized_name="new_message",
-                    normalized_types=["OBJECT"],
+                    normalized_types=[features_pb.ParamType.OBJECT],
                     is_optional=True,
                 ),
                 features_pb.Param(
                     normalized_name="state_delta",
-                    normalized_types=["MAP"],
+                    normalized_types=[features_pb.ParamType.MAP],
                     is_optional=True,
                 ),
                 features_pb.Param(
                     normalized_name="run_config",
-                    normalized_types=["OBJECT"],
+                    normalized_types=[features_pb.ParamType.OBJECT],
                     is_optional=True,
                 ),
             ],
-            "normalized_return_types": ["OBJECT", "null"],
+            "normalized_return_types": ["OBJECT", "NULL"],
             "async": True,
             "type": features_pb.Feature.Type.INSTANCE_METHOD,
         }
