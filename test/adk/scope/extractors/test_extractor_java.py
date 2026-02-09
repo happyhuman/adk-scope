@@ -2,11 +2,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from google.adk.scope.features_pb2 import Feature
 from google.adk.scope.extractors.extractor_java import (
     extract_features,
     find_files,
 )
+from google.adk.scope.features_pb2 import Feature
 
 
 class TestExtractor(unittest.TestCase):
