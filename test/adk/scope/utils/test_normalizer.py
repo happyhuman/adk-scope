@@ -152,6 +152,10 @@ class TestTypeNormalizer(unittest.TestCase):
             self.normalizer.normalize("Optional<String>", "java"),
             ["STRING", "NULL"],
         )
+        self.assertEqual(
+            self.normalizer.normalize("Maybe<String>", "java"),
+            ["STRING", "NULL"],
+        )
 
     def test_edge_cases(self):
         self.assertEqual(self.normalizer.normalize("", "python"), ["OBJECT"])

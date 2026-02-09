@@ -125,6 +125,69 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertTrue(getattr(feature, "async"))
         self.assertEqual(feature.maturity, Feature.Maturity.EXPERIMENTAL)
 
+    def test_extract_namespace_rewriting(self):
+        code = b"""
+        package com.google.adk.agents;
+        public class Test {
+            public void agentMethod() {}
+        }
+        """
+        tree = self.parser.parse(code)
+
+        root = tree.root_node
+        method_node = None
+        for child in root.children:
+            if child.type == "class_declaration":
+                body = child.child_by_field_name("body")
+                for member in body.children:
+                    if member.type == "method_declaration":
+                        method_node = member
+                        break
+
+        feature = self.processor.process(
+            method_node, self.file_path, self.repo_root
+        )
+
+        self.assertIsNotNone(feature)
+        self.assertEqual(feature.namespace, "agents")
+        self.assertEqual(feature.normalized_namespace, "agents")
+
+    def test_extract_boilerplate_filter(self):
+        code = b"""
+        package com.google.adk;
+        public class Test {
+            public String getName() { return ""; }
+            public void setName(String name) {}
+            public boolean isValid() { return true; }
+            public boolean equals(Object o) { return false; }
+            public int hashCode() { return 0; }
+            public String toString() { return ""; }
+            public void normalMethod() {}
+        }
+        """
+        tree = self.parser.parse(code)
+
+        root = tree.root_node
+        methods = []
+        for child in root.children:
+            if child.type == "class_declaration":
+                body = child.child_by_field_name("body")
+                for member in body.children:
+                    if member.type == "method_declaration":
+                        methods.append(member)
+
+        features = [
+            self.processor.process(m, self.file_path, self.repo_root)
+            for m in methods
+        ]
+
+        # Only 'normalMethod' should not be filtered out
+        valid_features = [f for f in features if f is not None]
+        self.assertEqual(len(valid_features), 1)
+        self.assertEqual(valid_features[0].original_name, "normalMethod")
+        # Ensure 'com.google.adk' was completely stripped to empty string
+        self.assertEqual(valid_features[0].namespace, "")
+
 
 if __name__ == "__main__":
     unittest.main()

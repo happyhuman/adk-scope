@@ -43,7 +43,38 @@ class NodeProcessor:
         # Skip testing methods if they happen to sneak in
         if original_name.startswith("test"):
             # A simplistic heuristic, could be improved
-            pass
+            return None
+
+        # Exclude boilerplate methods
+        if original_name in (
+            "equals",
+            "hashCode",
+            "toString",
+            "canEqual",
+            "clone",
+        ):
+            return None
+
+        # Exclude getters and setters
+        if node.type == "method_declaration":
+            if (
+                (
+                    original_name.startswith("get")
+                    and len(original_name) > 3
+                    and original_name[3].isupper()
+                )
+                or (
+                    original_name.startswith("set")
+                    and len(original_name) > 3
+                    and original_name[3].isupper()
+                )
+                or (
+                    original_name.startswith("is")
+                    and len(original_name) > 2
+                    and original_name[2].isupper()
+                )
+            ):
+                return None
 
         member_of, normalized_member_of = self._extract_class(node)
 
@@ -133,38 +164,48 @@ class NodeProcessor:
         while root.parent:
             root = root.parent
 
+        namespace = ""
         for child in root.children:
             if child.type == "package_declaration":
                 # Find scoped_identifier or identifier
                 for sub in child.children:
                     if sub.type in ("scoped_identifier", "identifier"):
-                        ns = sub.text.decode("utf-8")
-                        return ns, ns.replace(".", "_")
+                        namespace = sub.text.decode("utf-8")
+                        break
+            if namespace:
+                break
 
-        # Fallback to directory structure
-        try:
-            rel_path = file_path.relative_to(repo_root)
-            parts = list(rel_path.parent.parts)
-            # Try to strip common java roots like src/main/java
-            if "src" in parts:
-                idx = parts.index("src")
-                if (
-                    len(parts) > idx + 2
-                    and parts[idx + 1] == "main"
-                    and parts[idx + 2] == "java"
-                ):
-                    parts = parts[idx + 3 :]
-                elif len(parts) > idx + 1:
-                    parts = parts[idx + 1 :]
-        except ValueError:
-            parts = list(file_path.parent.parts)[-3:]
+        if not namespace:
+            # Fallback to directory structure
+            try:
+                rel_path = file_path.relative_to(repo_root)
+                parts = list(rel_path.parent.parts)
+                # Try to strip common java roots like src/main/java
+                if "src" in parts:
+                    idx = parts.index("src")
+                    if (
+                        len(parts) > idx + 2
+                        and parts[idx + 1] == "main"
+                        and parts[idx + 2] == "java"
+                    ):
+                        parts = parts[idx + 3 :]
+                    elif len(parts) > idx + 1:
+                        parts = parts[idx + 1 :]
+            except ValueError:
+                parts = list(file_path.parent.parts)[-3:]
 
-        parts = [p for p in parts if p and p not in (".", "..")]
+            parts = [p for p in parts if p and p not in (".", "..")]
 
-        if not parts:
-            return "", ""
+            if not parts:
+                return "", ""
 
-        namespace = ".".join(parts)
+            namespace = ".".join(parts)
+
+        if namespace == "com.google.adk":
+            namespace = ""
+        elif namespace.startswith("com.google.adk."):
+            namespace = namespace[len("com.google.adk.") :]
+
         normalized = namespace.replace(".", "_")
         return namespace, normalized
 

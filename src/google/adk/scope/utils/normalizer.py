@@ -162,18 +162,30 @@ class TypeNormalizer:
         match = re.match(r"([a-zA-Z0-9_]+)<(.+)>$", t)
         if match:
             base, inner = match.groups()
-            
+
             # Async types
-            if base in ("CompletableFuture", "Future", "Mono", "Flux", "Promise"):
+            if base in (
+                "CompletableFuture",
+                "Future",
+                "Mono",
+                "Flux",
+                "Promise",
+            ):
                 return self._normalize_java_type(inner)
-                
-            if base in ("List", "ArrayList", "LinkedList", "Collection", "Iterable"):
+
+            if base in (
+                "List",
+                "ArrayList",
+                "LinkedList",
+                "Collection",
+                "Iterable",
+            ):
                 return ["LIST"]
             if base in ("Map", "HashMap", "TreeMap", "ConcurrentHashMap"):
                 return ["MAP"]
             if base in ("Set", "HashSet", "TreeSet"):
                 return ["SET"]
-            if base == "Optional":
+            if base in ("Optional", "Maybe"):
                 result = self._normalize_java_type(inner)
                 if "NULL" not in result:
                     result.append("NULL")
@@ -185,7 +197,18 @@ class TypeNormalizer:
 
         if t_lower in ("string", "char", "character", "charsequence"):
             return ["STRING"]
-        if t_lower in ("int", "integer", "long", "short", "byte", "float", "double", "number", "bigdecimal", "biginteger"):
+        if t_lower in (
+            "int",
+            "integer",
+            "long",
+            "short",
+            "byte",
+            "float",
+            "double",
+            "number",
+            "bigdecimal",
+            "biginteger",
+        ):
             return ["NUMBER"]
         if t_lower in ("boolean", "bool"):
             return ["BOOLEAN"]
