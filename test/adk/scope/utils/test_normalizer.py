@@ -116,6 +116,43 @@ class TestTypeNormalizer(unittest.TestCase):
             ["STRING", "NULL"],
         )
 
+    def test_java_normalization(self):
+        self.assertEqual(
+            self.normalizer.normalize("String", "java"), ["STRING"]
+        )
+        self.assertEqual(self.normalizer.normalize("int", "java"), ["NUMBER"])
+        self.assertEqual(
+            self.normalizer.normalize("Integer", "java"), ["NUMBER"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize("boolean", "java"), ["BOOLEAN"]
+        )
+        self.assertEqual(self.normalizer.normalize("byte[]", "java"), ["LIST"])
+        self.assertEqual(
+            self.normalizer.normalize("List<String>", "java"), ["LIST"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize("Map<String, Object>", "java"), ["MAP"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize("Set<String>", "java"), ["SET"]
+        )
+        self.assertEqual(self.normalizer.normalize("void", "java"), ["NULL"])
+        self.assertEqual(
+            self.normalizer.normalize("Object", "java"), ["OBJECT"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize("MyCustomClass", "java"), ["OBJECT"]
+        )
+        self.assertEqual(
+            self.normalizer.normalize("CompletableFuture<String>", "java"),
+            ["STRING"],
+        )
+        self.assertEqual(
+            self.normalizer.normalize("Optional<String>", "java"),
+            ["STRING", "NULL"],
+        )
+
     def test_edge_cases(self):
         self.assertEqual(self.normalizer.normalize("", "python"), ["OBJECT"])
         self.assertEqual(self.normalizer.normalize(" ", "python"), ["OBJECT"])

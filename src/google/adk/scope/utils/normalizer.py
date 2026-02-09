@@ -22,7 +22,8 @@ class TypeNormalizer:
             return self._normalize_py_type(type_name)
         elif language == "typescript":
             return self._normalize_ts_type(type_name)
-        # Add placeholders for future languages like 'java' and 'go'
+        elif language == "java":
+            return self._normalize_java_type(type_name)
         # Fallback for unknown languages: only normalize if it's a known simple
         # type, otherwise OBJECT
         normalized = self._simple_normalize(type_name)
@@ -141,6 +142,55 @@ class TypeNormalizer:
             return ["MAP"]
         if t_lower.startswith("set"):
             return ["SET"]
+
+        return ["OBJECT"]
+
+    def _normalize_java_type(self, t: str) -> List[str]:
+        # Handle fundamental Java types
+        t = t.strip()
+        if not t:
+            return ["OBJECT"]
+
+        if t in ("void", "Void"):
+            return ["NULL"]
+
+        # Handle formatting like byte[] as array
+        if t.endswith("[]"):
+            return ["LIST"]
+
+        # Generics: CompletableFuture<T>, List<T>, Map<K, V>
+        match = re.match(r"([a-zA-Z0-9_]+)<(.+)>$", t)
+        if match:
+            base, inner = match.groups()
+            
+            # Async types
+            if base in ("CompletableFuture", "Future", "Mono", "Flux", "Promise"):
+                return self._normalize_java_type(inner)
+                
+            if base in ("List", "ArrayList", "LinkedList", "Collection", "Iterable"):
+                return ["LIST"]
+            if base in ("Map", "HashMap", "TreeMap", "ConcurrentHashMap"):
+                return ["MAP"]
+            if base in ("Set", "HashSet", "TreeSet"):
+                return ["SET"]
+            if base == "Optional":
+                result = self._normalize_java_type(inner)
+                if "NULL" not in result:
+                    result.append("NULL")
+                return result
+            # Fallback for other generics
+            return ["OBJECT"]
+
+        t_lower = t.lower()
+
+        if t_lower in ("string", "char", "character", "charsequence"):
+            return ["STRING"]
+        if t_lower in ("int", "integer", "long", "short", "byte", "float", "double", "number", "bigdecimal", "biginteger"):
+            return ["NUMBER"]
+        if t_lower in ("boolean", "bool"):
+            return ["BOOLEAN"]
+        if t_lower == "object":
+            return ["OBJECT"]
 
         return ["OBJECT"]
 

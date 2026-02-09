@@ -6,7 +6,7 @@ import yaml
 from google.protobuf import text_format
 from google.protobuf.json_format import MessageToDict, MessageToJson
 
-from google.adk.scope.extractors import extractor_py, extractor_ts
+from google.adk.scope.extractors import extractor_py, extractor_ts, extractor_java
 from google.adk.scope.features_pb2 import FeatureRegistry
 from google.adk.scope.utils.args import parse_args
 
@@ -24,16 +24,19 @@ _PROTO_OUTPUT = True
 EXTRACTORS = {
     "python": extractor_py,
     "typescript": extractor_ts,
+    "java": extractor_java,
 }
 
 REPO_ROOT_MARKERS = {
     "python": ["src"],
     "typescript": ["package.json", "tsconfig.json"],
+    "java": ["pom.xml", "build.gradle", "build.gradle.kts"],
 }
 
 REPO_SRC_SUBDIRS = {
     "python": ["src"],
     "typescript": ["core/src", "src"],
+    "java": ["src/main/java", "src"],
 }
 
 
@@ -198,7 +201,7 @@ def main():
         logger.error("Failed to create output directory %s: %s", output_dir, e)
         sys.exit(1)
 
-    prefix = "py" if args.language in {"python", "py"} else "ts"
+    prefix = "py" if args.language in {"python", "py"} else "ts" if args.language in {"typescript", "ts"} else "java"
     base_filename = f"{prefix}"
 
     if _JSON_OUTPUT:
