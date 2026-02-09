@@ -1,19 +1,11 @@
-import argparse
-import dataclasses
-import logging
-import sys
 from collections import defaultdict
-from datetime import datetime
-from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
-from google.protobuf import text_format
 from jellyfish import jaro_winkler_similarity
 from scipy.optimize import linear_sum_assignment
 
 from google.adk.scope import features_pb2
-from google.adk.scope.utils import args as adk_args
 from google.adk.scope.utils import stats
 from google.adk.scope.utils.similarity import SimilarityScorer
 
@@ -279,7 +271,9 @@ def process_module(
         mod_lines.extend(
             ["### ❌ Missing in Target", "| Missing Feature |", "|---|"]
         )
-        mod_lines.extend([f"| `{_format_feature(f)}` |" for f in unmatched_base])
+        mod_lines.extend(
+            [f"| `{_format_feature(f)}` |" for f in unmatched_base]
+        )
         mod_lines.append("")
 
     return {

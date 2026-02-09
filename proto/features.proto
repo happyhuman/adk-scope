@@ -15,6 +15,7 @@ enum ParamType {
   MAP = 5;
   SET = 6;
   UNKNOWN = 7;
+  NULL = 8;
 }
 
 
@@ -60,7 +61,7 @@ message Feature {
   
   repeated string original_return_types = 12;   // Raw returns (e.g., "Future<String>").
   repeated string normalized_return_types = 13; // Canonical returns (e.g., "STRING").
-  
+
   optional bool async = 14;                     // true if it is an async call. 
 }
 

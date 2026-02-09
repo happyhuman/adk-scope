@@ -2,9 +2,12 @@ import os
 import tempfile
 import unittest
 from unittest.mock import patch
+
+from google.protobuf import text_format
+
 from google.adk.scope import features_pb2
-from google.adk.scope.reporter import reporter
 from google.adk.scope.matcher import matcher
+from google.adk.scope.reporter import reporter
 
 
 class TestReporter(unittest.TestCase):
@@ -309,7 +312,8 @@ class TestReporter(unittest.TestCase):
             ).generate_raw_report()
 
             self.assertIn(
-                "python_namespace,python_member_of,python_name", result.master_content
+                "python_namespace,python_member_of,python_name",
+                result.master_content,
             )
             self.assertIn("n1,c1,f1_base", result.master_content)
 
@@ -380,6 +384,89 @@ class TestReporter(unittest.TestCase):
             self.assertIn("## Module Summary", result.master_content)
             self.assertIn("| `n1` |", result.master_content)
             self.assertIn("n1.md", result.module_files)
+
+    def test_raw_integration(self):
+        """Tests the raw report generation end-to-end."""
+        python_features_str = """
+            language: "PYTHON"
+            version: "1.23.0"
+            features {
+            original_name: "load_artifact"
+            normalized_name: "load_artifact"
+            description: "description"
+            member_of: "InMemoryArtifactService"
+            normalized_member_of: "in_memory_artifact_service"            
+            type: INSTANCE_METHOD
+            file_path: "adk/runners.py"
+            namespace: "runners"
+            normalized_namespace: "artifacts"
+            parameters {
+                original_name: "app_name"
+                normalized_name: "app_name"
+                original_types: "str"
+                normalized_types: STRING
+                description: "The app name."
+            }
+            parameters {
+                original_name: "session_id"
+                normalized_name: "session_id"
+                original_types: "Optional[str]"
+                normalized_types: STRING
+                normalized_types: NULL
+                description: "description"
+                is_optional: true
+            }
+            original_return_types: "Optional[types.Part]"
+            normalized_return_types: "OBJECT"
+            normalized_return_types: "NULL"
+            async: true            
+        }
+        """
+
+        typescript_features_str = """
+        language: "TYPESCRIPT"
+        version: "0.3.0"
+        features {
+            original_name: "loadArtifact"
+            normalized_name: "load_artifact"
+            member_of: "InMemoryArtifactService"
+            normalized_member_of: "in_memory_artifact_service"
+            type: INSTANCE_METHOD
+            file_path: "in_memory_artifact_service.ts"
+            namespace: "artifacts"
+            normalized_namespace: "artifacts"
+            parameters {
+                original_name: "request"
+                normalized_name: "request"
+                original_types: "LoadArtifactRequest"
+                normalized_types: OBJECT
+            }
+            original_return_types: "Promise<Part | undefined>"
+            normalized_return_types: "OBJECT"
+            normalized_return_types: "NULL"
+            async: true
+        }
+        """
+
+        py_registry = text_format.Parse(
+            python_features_str, features_pb2.FeatureRegistry()
+        )
+        ts_registry = text_format.Parse(
+            typescript_features_str, features_pb2.FeatureRegistry()
+        )
+
+        result = reporter.ReportGenerator(
+            py_registry, ts_registry, 0.8
+        ).generate_raw_report()
+
+        self.assertIn(
+            "python_namespace,python_member_of,python_name,ts_namespace,ts_member_of,ts_name,type,score",
+            result.master_content,
+        )
+
+        print(result.master_content)
+        self.assertEqual(len(result.master_content.splitlines()), 2)
+        # A known match
 
 
 if __name__ == "__main__":

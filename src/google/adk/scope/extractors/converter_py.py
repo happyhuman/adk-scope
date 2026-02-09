@@ -382,11 +382,9 @@ class NodeProcessor:
             # Protocol Buffer enums don't have NULL usually.
             # Let's drop "null" from the enum list for now, or map to
             # UNKNOWN if forced.
-            if s == "null":
-                continue
-
             try:
-                enum_val = getattr(feature_pb2.ParamType, s)
+                # s is lowercase from normalizer, enum is uppercase
+                enum_val = getattr(feature_pb2.ParamType, s.upper())
                 normalized_enums.append(enum_val)
             except AttributeError:
                 # Fallback to OBJECT or UNKNOWN?

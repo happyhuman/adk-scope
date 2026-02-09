@@ -566,7 +566,7 @@ class NodeProcessor:
         normalized_enums = []
         for s in normalized_strings:
             try:
-                enum_val = getattr(feature_pb2.ParamType, s)
+                enum_val = getattr(feature_pb2.ParamType, s.upper())
                 normalized_enums.append(enum_val)
             except AttributeError:
                 normalized_enums.append(feature_pb2.ParamType.OBJECT)
@@ -613,7 +613,8 @@ class NodeProcessor:
             # logically T for async?
             # Schema says "original_return_types".
             # normalized usually unwrap?
-            return [raw], self.normalizer.normalize(raw, "typescript")
+            normalized = self.normalizer.normalize(raw, "typescript")
+            return [raw], normalized
         return [], []
 
     def _is_blocking(self, node: Node, return_types: List[str]) -> bool:

@@ -1,13 +1,10 @@
-import os
-import tempfile
 import unittest
-from unittest.mock import patch
+
 from google.adk.scope import features_pb2
 from google.adk.scope.matcher import matcher
 
 
 class TestMatcher(unittest.TestCase):
-
 
     def test_match_features(self):
         f1 = features_pb2.Feature(

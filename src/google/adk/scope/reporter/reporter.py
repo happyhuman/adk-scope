@@ -5,18 +5,14 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
-import numpy as np
 from google.protobuf import text_format
-from jellyfish import jaro_winkler_similarity
-from scipy.optimize import linear_sum_assignment
 
 from google.adk.scope import features_pb2
 from google.adk.scope.matcher import matcher
 from google.adk.scope.utils import args as adk_args
 from google.adk.scope.utils import stats
-from google.adk.scope.utils.similarity import SimilarityScorer
 
 _NEAR_MISS_THRESHOLD = 0.15
 
@@ -150,8 +146,8 @@ class ReportGenerator:
                 base_list, target_list, beta
             )
 
-            unmatched_base = base_list
-            unmatched_target = target_list
+            unmatched_base = list(base_list)
+            unmatched_target = list(target_list)
 
             for f_base, f_target, score in solid_matches:
                 b_ns, b_mem, b_name = get_feature_cols(f_base)
