@@ -109,7 +109,9 @@ def main():
         config = get_config(repo_root)
         source_root = config.get(args.language, {}).get("source_root", ".")
 
-        features = extractor_module.extract_features(input_path, repo_root, source_root)
+        features = extractor_module.extract_features(
+            input_path, repo_root, source_root
+        )
         all_features.extend(features)
 
         try:
@@ -138,7 +140,9 @@ def main():
         source_root = config.get(args.language, {}).get("source_root", ".")
 
         for p in files:
-            features = extractor_module.extract_features(p, repo_root, source_root)
+            features = extractor_module.extract_features(
+                p, repo_root, source_root
+            )
             all_features.extend(features)
             # Log only if features found? Or keep unified summary at end.
             if features:
@@ -183,7 +187,9 @@ def main():
 
         source_root = config.get(args.language, {}).get("source_root", ".")
         for p in files:
-            features = extractor_module.extract_features(p, repo_root, source_root)
+            features = extractor_module.extract_features(
+                p, repo_root, source_root
+            )
             all_features.extend(features)
 
     else:

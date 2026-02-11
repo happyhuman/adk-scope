@@ -8,7 +8,7 @@ from typing import List
 
 
 def normalize_namespace(file_path: str, source_root: str) -> str:
-    """Derives a normalized namespace based on the file's path relative to a source root."""
+    """Derives a normalized namespace from a file's path."""
     abs_file_path = os.path.abspath(file_path)
     abs_source_root = os.path.abspath(source_root)
 

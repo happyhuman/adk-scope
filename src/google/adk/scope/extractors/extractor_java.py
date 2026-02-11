@@ -131,7 +131,15 @@ def get_version(repo_root: pathlib.Path) -> str:
 
     # 1. Try to get version from Version.java
     version_file = (
-        repo_root / "core" / "src" / "main" / "java" / "com" / "google" / "adk" / "Version.java"
+        repo_root
+        / "core"
+        / "src"
+        / "main"
+        / "java"
+        / "com"
+        / "google"
+        / "adk"
+        / "Version.java"
     )
     if version_file.exists():
         try:
