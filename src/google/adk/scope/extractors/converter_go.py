@@ -24,7 +24,7 @@ class NodeProcessor:
         self, node: Node, file_path: Path, repo_root: Path
     ) -> Optional[feature_pb2.Feature]:
         """Convert a Tree-sitter node into a Feature."""
-        if node.type != "function_declaration":
+        if node.type not in ("function_declaration", "method_declaration"):
             return None
 
         original_name = self._extract_name(node)
