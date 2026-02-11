@@ -1,19 +1,12 @@
-import sys
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from google.adk.scope.extractors.extractor_py import (
+from google.adk.scope.extractors.extractor_java import (
     extract_features,
     find_files,
 )
 from google.adk.scope.features_pb2 import Feature
-
-# Mock tree_sitter modules BEFORE importing extractor
-mock_ts = MagicMock()
-mock_ts_py = MagicMock()
-sys.modules["tree_sitter"] = mock_ts
-sys.modules["tree_sitter_python"] = mock_ts_py
 
 
 class TestExtractor(unittest.TestCase):
@@ -23,52 +16,45 @@ class TestExtractor(unittest.TestCase):
             patch("pathlib.Path.exists", return_value=True),
             patch("pathlib.Path.rglob") as mock_rglob,
         ):
-            p1 = Path("src/a.py")
-            p2 = Path("src/__init__.py")  # Should be excluded
-            p3 = Path("src/.hidden.py")  # Should be excluded
-            p4 = Path("src/b.py")
-            p5 = Path("src/subdir/c.py")
-            p6 = Path("src/.venv/lib.py")  # Should be excluded because of .venv
+            p1 = Path("src/main/java/A.java")
+            p2 = Path("src/test/java/TestA.java")  # Should be excluded
+            p3 = Path("build/classes/B.java")  # Should be excluded
+            p4 = Path("package-info.java")  # Should be excluded
+            p5 = Path("src/main/java/subdir/C.java")
+            p6 = Path("node_modules/lib.java")  # Should be excluded
 
             mock_rglob.return_value = [p1, p2, p3, p4, p5, p6]
 
             results = list(find_files(Path("src")))
 
             self.assertIn(p1, results)
-            self.assertIn(p4, results)
+            self.assertNotIn(p2, results)  # test excluded
+            self.assertNotIn(p3, results)  # build excluded
+            self.assertNotIn(p4, results)  # package-info excluded
             self.assertIn(p5, results)
-            self.assertNotIn(p2, results)  # __init__ excluded
-            self.assertNotIn(p3, results)  # hidden file excluded
-            self.assertNotIn(p6, results)  # hidden dir excluded
+            self.assertNotIn(p6, results)  # node_modules excluded
 
-    @patch("google.adk.scope.extractors.extractor_py.QueryCursor")
-    @patch("google.adk.scope.extractors.extractor_py.Query")
-    @patch("google.adk.scope.extractors.extractor_py.PARSER")
+    @patch("google.adk.scope.extractors.extractor_java.QueryCursor")
+    @patch("google.adk.scope.extractors.extractor_java.Query")
+    @patch("google.adk.scope.extractors.extractor_java.PARSER")
     def test_extract_features(
         self, mock_parser, mock_query_cls, mock_cursor_cls
     ):
-        # Mock file read
         mock_path = MagicMock(spec=Path)
-        mock_path.read_bytes.return_value = b"def foo(): pass"
+        mock_path.read_bytes.return_value = b"class A { void foo() {} }"
 
-        # Mock tree
         mock_tree = MagicMock()
         mock_parser.parse.return_value = mock_tree
         mock_tree.root_node = MagicMock()
 
-        # Mock query and cursor
         mock_cursor_instance = mock_cursor_cls.return_value
 
-        # Mock captures
-        # capture returns dict of {capture_name: [nodes]}
         mock_node = MagicMock()
-        mock_node.type = "function_definition"
-        mock_cursor_instance.captures.return_value = {"func": [mock_node]}
+        mock_node.id = 123
+        mock_cursor_instance.captures.return_value = {"method": [mock_node]}
 
-        # We need to mock NodeProcessor.process to avoid complex node
-        # mocking if we just want to test flow
         with patch(
-            "google.adk.scope.extractors.extractor_py.NodeProcessor"
+            "google.adk.scope.extractors.extractor_java.NodeProcessor"
         ) as MockProcessor:
             processor_instance = MockProcessor.return_value
             expected_feature = Feature(
@@ -81,7 +67,6 @@ class TestExtractor(unittest.TestCase):
             self.assertEqual(len(features), 1)
             self.assertEqual(features[0], expected_feature)
 
-            # Verify process was called
             processor_instance.process.assert_called_once()
 
     def test_find_files_not_exists(self):

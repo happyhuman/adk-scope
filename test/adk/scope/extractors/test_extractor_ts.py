@@ -82,7 +82,7 @@ class TestExtractor(unittest.TestCase):
                     original_name="foo"
                 )
 
-                features = extractor.extract_features(p, self.test_dir)
+                features = extractor.extract_features(p, self.test_dir, ".")
 
                 self.assertEqual(len(features), 1)
                 self.assertEqual(features[0].original_name, "foo")

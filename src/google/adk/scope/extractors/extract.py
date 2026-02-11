@@ -6,7 +6,8 @@ import yaml
 from google.protobuf import text_format
 from google.protobuf.json_format import MessageToDict, MessageToJson
 
-from google.adk.scope.extractors import extractor_py, extractor_ts
+from google.adk.scope.extractors import (extractor_java, extractor_py,
+                                         extractor_ts)
 from google.adk.scope.features_pb2 import FeatureRegistry
 from google.adk.scope.utils.args import parse_args
 
@@ -24,16 +25,19 @@ _PROTO_OUTPUT = True
 EXTRACTORS = {
     "python": extractor_py,
     "typescript": extractor_ts,
+    "java": extractor_java,
 }
 
 REPO_ROOT_MARKERS = {
     "python": ["src"],
     "typescript": ["package.json", "tsconfig.json"],
+    "java": ["pom.xml", "build.gradle", "build.gradle.kts"],
 }
 
 REPO_SRC_SUBDIRS = {
     "python": ["src"],
     "typescript": ["core/src", "src"],
+    "java": ["src/main/java", "src"],
 }
 
 
@@ -87,6 +91,7 @@ def main():
 
     all_features = []
     repo_root = None
+    config = {}
 
     if args.input_file:
         input_path = args.input_file
@@ -100,8 +105,13 @@ def main():
         repo_root = input_path.parent
         if root := get_repo_root(input_path, args.language):
             repo_root = root
+        
+        config = get_config(repo_root)
+        source_root = config.get(args.language, {}).get("source_root", ".")
 
-        features = extractor_module.extract_features(input_path, repo_root)
+        features = extractor_module.extract_features(
+            input_path, repo_root, source_root
+        )
         all_features.extend(features)
 
         try:
@@ -126,8 +136,13 @@ def main():
         files = list(extractor_module.find_files(input_path, recursive=False))
         logger.info("Found %d %s files.", len(files), args.language)
 
+        config = get_config(repo_root)
+        source_root = config.get(args.language, {}).get("source_root", ".")
+
         for p in files:
-            features = extractor_module.extract_features(p, repo_root)
+            features = extractor_module.extract_features(
+                p, repo_root, source_root
+            )
             all_features.extend(features)
             # Log only if features found? Or keep unified summary at end.
             if features:
@@ -170,8 +185,11 @@ def main():
             "Found %d %s files in %s.", len(files), args.language, search_dir
         )
 
+        source_root = config.get(args.language, {}).get("source_root", ".")
         for p in files:
-            features = extractor_module.extract_features(p, repo_root)
+            features = extractor_module.extract_features(
+                p, repo_root, source_root
+            )
             all_features.extend(features)
 
     else:
@@ -198,7 +216,11 @@ def main():
         logger.error("Failed to create output directory %s: %s", output_dir, e)
         sys.exit(1)
 
-    prefix = "py" if args.language in {"python", "py"} else "ts"
+    prefix = (
+        "py"
+        if args.language in {"python", "py"}
+        else "ts" if args.language in {"typescript", "ts"} else "java"
+    )
     base_filename = f"{prefix}"
 
     if _JSON_OUTPUT:

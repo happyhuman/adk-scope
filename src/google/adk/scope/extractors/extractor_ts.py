@@ -7,6 +7,7 @@ from tree_sitter import Language, Parser, Query, QueryCursor
 
 from google.adk.scope.extractors.converter_ts import NodeProcessor
 from google.adk.scope.features_pb2 import Feature
+from google.adk.scope.utils.normalizer import normalize_namespace
 
 # Initialize Tree-sitter
 try:
@@ -51,7 +52,7 @@ def find_files(
 
 
 def extract_features(
-    file_path: pathlib.Path, repo_root: pathlib.Path
+    file_path: pathlib.Path, repo_root: pathlib.Path, source_root: str
 ) -> List[Feature]:
     try:
         content = file_path.read_bytes()
@@ -77,8 +78,6 @@ def extract_features(
     cursor = QueryCursor(query)
     captures = cursor.captures(root_node)
 
-    processed_ids = set()
-
     all_nodes = []
     if "func" in captures:
         all_nodes.extend(captures["func"])
@@ -88,12 +87,12 @@ def extract_features(
     logger.debug("Found %d potential nodes in %s", len(all_nodes), file_path)
 
     for node in all_nodes:
-        if node.id in processed_ids:
-            continue
-        processed_ids.add(node.id)
 
         feature = processor.process(node, file_path, repo_root)
         if feature:
+            feature.normalized_namespace = normalize_namespace(
+                str(file_path), str(repo_root / source_root)
+            )
             features.append(feature)
             logger.debug("Extracted feature: %s", feature.original_name)
 
