@@ -7,8 +7,7 @@ from tree_sitter import Language, Parser, Query, QueryCursor
 
 from google.adk.scope.extractors.converter_py import NodeProcessor
 from google.adk.scope.features_pb2 import Feature
-
-SRC_DIR = "src"
+from google.adk.scope.utils.normalizer import normalize_namespace
 
 # Initialize Tree-sitter
 PY_LANGUAGE = Language(tspy.language())
@@ -60,7 +59,7 @@ def find_files(
 
 
 def extract_features(
-    file_path: pathlib.Path, repo_root: pathlib.Path
+    file_path: pathlib.Path, repo_root: pathlib.Path, source_root: str
 ) -> List[Feature]:
     """Extract Feature objects from a Python file.
 
@@ -106,6 +105,9 @@ def extract_features(
         # The node is a function_definition
         feature = processor.process(node, file_path, repo_root)
         if feature:
+            feature.normalized_namespace = normalize_namespace(
+                str(file_path), str(repo_root / source_root)
+            )
             features.append(feature)
             logger.debug("Extracted feature: %s", feature.original_name)
         else:

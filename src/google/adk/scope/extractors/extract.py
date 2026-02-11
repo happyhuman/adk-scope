@@ -94,6 +94,7 @@ def main():
 
     all_features = []
     repo_root = None
+    config = {}
 
     if args.input_file:
         input_path = args.input_file
@@ -107,8 +108,11 @@ def main():
         repo_root = input_path.parent
         if root := get_repo_root(input_path, args.language):
             repo_root = root
+        
+        config = get_config(repo_root)
+        source_root = config.get(args.language, {}).get("source_root", ".")
 
-        features = extractor_module.extract_features(input_path, repo_root)
+        features = extractor_module.extract_features(input_path, repo_root, source_root)
         all_features.extend(features)
 
         try:
@@ -133,8 +137,11 @@ def main():
         files = list(extractor_module.find_files(input_path, recursive=False))
         logger.info("Found %d %s files.", len(files), args.language)
 
+        config = get_config(repo_root)
+        source_root = config.get(args.language, {}).get("source_root", ".")
+
         for p in files:
-            features = extractor_module.extract_features(p, repo_root)
+            features = extractor_module.extract_features(p, repo_root, source_root)
             all_features.extend(features)
             # Log only if features found? Or keep unified summary at end.
             if features:
@@ -177,8 +184,9 @@ def main():
             "Found %d %s files in %s.", len(files), args.language, search_dir
         )
 
+        source_root = config.get(args.language, {}).get("source_root", ".")
         for p in files:
-            features = extractor_module.extract_features(p, repo_root)
+            features = extractor_module.extract_features(p, repo_root, source_root)
             all_features.extend(features)
 
     else:

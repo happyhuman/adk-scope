@@ -2,8 +2,26 @@
 Unified type normalization for ADK Scope.
 """
 
+import os
 import re
 from typing import List
+
+
+def normalize_namespace(file_path: str, source_root: str) -> str:
+    """Derives a normalized namespace based on the file's path relative to a source root."""
+    abs_file_path = os.path.abspath(file_path)
+    abs_source_root = os.path.abspath(source_root)
+
+    if not abs_file_path.startswith(abs_source_root):
+        return "adk"
+
+    relative_path = os.path.relpath(abs_file_path, abs_source_root)
+    relative_dir = os.path.dirname(relative_path)
+
+    if not relative_dir:
+        return "adk"
+
+    return f'adk_{relative_dir.replace(os.path.sep, "_")}'
 
 
 def normalize_name(name: str) -> str:

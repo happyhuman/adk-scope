@@ -7,6 +7,7 @@ from tree_sitter import Language, Parser, Query, QueryCursor
 
 from google.adk.scope.extractors.converter_java import NodeProcessor
 from google.adk.scope.features_pb2 import Feature
+from google.adk.scope.utils.normalizer import normalize_namespace
 
 # Initialize Tree-sitter
 try:
@@ -69,7 +70,7 @@ def find_files(
 
 
 def extract_features(
-    file_path: pathlib.Path, repo_root: pathlib.Path
+    file_path: pathlib.Path, repo_root: pathlib.Path, source_root: str
 ) -> List[Feature]:
     """Extract Feature objects from a Java file.
 
@@ -121,6 +122,9 @@ def extract_features(
 
         feature = processor.process(node, file_path, repo_root)
         if feature:
+            feature.normalized_namespace = normalize_namespace(
+                str(file_path), str(repo_root / source_root)
+            )
             features.append(feature)
             logger.debug("Extracted feature: %s", feature.original_name)
 
@@ -130,7 +134,24 @@ def extract_features(
 def get_version(repo_root: pathlib.Path) -> str:
     version = "0.0.0"
 
-    # Try pom.xml
+    # 1. Try to get version from Version.java
+    version_file = (
+        repo_root / "core" / "src" / "main" / "java" / "com" / "google" / "adk" / "Version.java"
+    )
+    if version_file.exists():
+        try:
+            content = version_file.read_text()
+            import re
+
+            match = re.search(
+                r'JAVA_ADK_VERSION\s*=\s*"([^"]+)"', content
+            )
+            if match:
+                return match.group(1)
+        except Exception as e:
+            logger.warning("Failed to read or parse Version.java: %s", e)
+
+    # 2. Fallback to pom.xml
     pom_xml = repo_root / "pom.xml"
     if pom_xml.exists():
         import xml.etree.ElementTree as ET
@@ -153,27 +174,27 @@ def get_version(repo_root: pathlib.Path) -> str:
 
             if version_node is not None and version_node.text:
                 version = version_node.text.strip()
+                return version  # Return as soon as we find it
         except Exception as e:
             logger.warning("Failed to parse pom.xml for version: %s", e)
 
-    # Try build.gradle / build.gradle.kts
-    if "".join(version) == "0.0.0":
-        for gradle_file in ("build.gradle", "build.gradle.kts"):
-            path = repo_root / gradle_file
-            if path.exists():
-                try:
-                    content = path.read_text()
-                    for line in content.splitlines():
-                        if line.strip().startswith("version"):
-                            import re
+    # 3. Fallback to build.gradle / build.gradle.kts
+    for gradle_file in ("build.gradle", "build.gradle.kts"):
+        path = repo_root / gradle_file
+        if path.exists():
+            try:
+                content = path.read_text()
+                for line in content.splitlines():
+                    if line.strip().startswith("version"):
+                        import re
 
-                            match = re.search(
-                                r"""version\s*=?\s*['"]([^'"]+)['"]""", line
-                            )
-                            if match:
-                                version = match.group(1)
-                                break
-                except Exception:
-                    pass
+                        match = re.search(
+                            r"""version\s*=?\s*['"]([^'"]+)['"]""", line
+                        )
+                        if match:
+                            version = match.group(1)
+                            return version  # Return as soon as we find it
+            except Exception:
+                pass
 
     return version

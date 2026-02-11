@@ -1,7 +1,19 @@
 python:
+  source_root: src/google/adk
   exclude:
     - examples
 
 typescript:
+  source_root: core/src/
+  exclude:
+    - examples
+
+java:
+  source_root: core/src/main/java/com/google/adk
+  exclude:
+    - examples
+
+go:
+  source_root: .
   exclude:
     - examples
