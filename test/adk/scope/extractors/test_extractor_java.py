@@ -62,7 +62,7 @@ class TestExtractor(unittest.TestCase):
             )
             processor_instance.process.return_value = expected_feature
 
-            features = extract_features(mock_path, Path("/repo"))
+            features = extract_features(mock_path, Path("/repo"), ".")
 
             self.assertEqual(len(features), 1)
             self.assertEqual(features[0], expected_feature)
@@ -77,7 +77,7 @@ class TestExtractor(unittest.TestCase):
     def test_extract_features_read_error(self):
         mock_path = MagicMock(spec=Path)
         mock_path.read_bytes.side_effect = IOError("Read error")
-        features = extract_features(mock_path, Path("/repo"))
+        features = extract_features(mock_path, Path("/repo"), ".")
         self.assertEqual(features, [])
 
 
