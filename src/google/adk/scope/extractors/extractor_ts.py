@@ -78,8 +78,6 @@ def extract_features(
     cursor = QueryCursor(query)
     captures = cursor.captures(root_node)
 
-    processed_ids = set()
-
     all_nodes = []
     if "func" in captures:
         all_nodes.extend(captures["func"])
@@ -89,9 +87,6 @@ def extract_features(
     logger.debug("Found %d potential nodes in %s", len(all_nodes), file_path)
 
     for node in all_nodes:
-        if node.id in processed_ids:
-            continue
-        processed_ids.add(node.id)
 
         feature = processor.process(node, file_path, repo_root)
         if feature:

@@ -43,6 +43,7 @@ class NodeProcessor:
         # Skip testing methods if they happen to sneak in
         if original_name.startswith("test"):
             # A simplistic heuristic, could be improved
+            logger.debug("Skipping test method: %s", original_name)
             return None
 
         # Exclude boilerplate methods
@@ -53,6 +54,7 @@ class NodeProcessor:
             "canEqual",
             "clone",
         ):
+            logger.debug("Skipping boilerplate method: %s", original_name)
             return None
 
         # Exclude getters and setters
@@ -74,6 +76,7 @@ class NodeProcessor:
                     and original_name[2].isupper()
                 )
             ):
+                logger.debug("Skipping getter/setter: %s", original_name)
                 return None
 
         member_of, normalized_member_of = self._extract_class(node)

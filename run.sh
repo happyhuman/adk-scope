@@ -9,14 +9,14 @@ echo "Extracting Java features..."
 
 # Py -> TS
 
-#echo "Generating symmetric reports..."
-#./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type symmetric
+echo "Generating symmetric reports..."
+./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type symmetric
 
-#echo "Generating directional reports..  ."
-#./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type directional
+echo "Generating directional reports..  ."
+./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type directional
 
-#echo "Generating raw reports..."
-#./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type raw
+echo "Generating raw reports..."
+./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type raw
 
 # Py -> Java
 

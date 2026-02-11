@@ -6,11 +6,8 @@ import yaml
 from google.protobuf import text_format
 from google.protobuf.json_format import MessageToDict, MessageToJson
 
-from google.adk.scope.extractors import (
-    extractor_java,
-    extractor_py,
-    extractor_ts,
-)
+from google.adk.scope.extractors import (extractor_java, extractor_py,
+                                         extractor_ts)
 from google.adk.scope.features_pb2 import FeatureRegistry
 from google.adk.scope.utils.args import parse_args
 
