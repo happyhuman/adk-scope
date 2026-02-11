@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
         "--language",
         type=str,
         required=True,
-        choices=["python", "py", "typescript", "ts", "java"],
+        choices=["python", "py", "typescript", "ts", "java", "go"],
         help="Language to extract features for.",
     )
 
@@ -74,5 +74,7 @@ def parse_args() -> argparse.Namespace:
         args.language = "python"
     elif args.language in ("ts", "typescript"):
         args.language = "typescript"
+    elif args.language == "go":
+        args.language = "go"
 
     return args
