@@ -146,9 +146,7 @@ def get_version(repo_root: pathlib.Path) -> str:
             content = version_file.read_text()
             import re
 
-            match = re.search(
-                r'JAVA_ADK_VERSION\s*=\s*"([^"]+)"', content
-            )
+            match = re.search(r'JAVA_ADK_VERSION\s*=\s*"([^"]+)"', content)
             if match:
                 return match.group(1)
         except Exception as e:

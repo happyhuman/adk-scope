@@ -42,6 +42,8 @@ class TypeNormalizer:
             return self._normalize_ts_type(type_name)
         elif language == "java":
             return self._normalize_java_type(type_name)
+        elif language == "go":
+            return self._normalize_go_type(type_name)
         # Fallback for unknown languages: only normalize if it's a known simple
         # type, otherwise OBJECT
         normalized = self._simple_normalize(type_name)
@@ -163,13 +165,72 @@ class TypeNormalizer:
 
         return ["OBJECT"]
 
+    def _normalize_go_type(self, t: str) -> List[str]:
+        # Handle fundamental Go types
+        t = t.strip()
+        if not t:
+            return ["OBJECT"]
+
+        # Maps
+        if t.startswith("map["):
+            return ["MAP"]
+
+        # Slices and Arrays
+        if t.startswith("[]") or (
+            t.startswith("[") and "]" in t and t.find("]") < t.find(" ")
+            if " " in t
+            else t.startswith("[")
+        ):
+            # Even bounded arrays like [5]string should map to LIST conceptually
+            # for ADK Scope
+            if t.startswith("[") and "]" in t:
+                # Ensure it's not a map definition (handled above)
+                return ["LIST"]
+
+        # Pointers (strip and re-evaluate)
+        if t.startswith("*"):
+            return self._normalize_go_type(t[1:])
+
+        t_lower = t.lower()
+
+        if t_lower in ("string", "rune", "byte"):
+            return ["STRING"]
+        if t_lower in (
+            "int",
+            "int8",
+            "int16",
+            "int32",
+            "int64",
+            "uint",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint64",
+            "uintptr",
+            "float32",
+            "float64",
+            "complex64",
+            "complex128",
+        ):
+            return ["NUMBER"]
+        if t_lower in ("bool", "boolean"):
+            return ["BOOLEAN"]
+        if t_lower in ("any", "interface{}"):
+            return ["OBJECT"]
+        if t_lower == "error":
+            return [
+                "OBJECT"
+            ]  # Error handling relies on this fallback unless stripped
+
+        return ["OBJECT"]
+
     def _normalize_java_type(self, t: str) -> List[str]:
         # Handle fundamental Java types
         t = t.strip()
         if not t:
             return ["OBJECT"]
 
-        if t in ("void", "Void"):
+        if t.lower() in ("void", "completable"):
             return ["NULL"]
 
         # Handle formatting like byte[] as array
@@ -188,6 +249,7 @@ class TypeNormalizer:
                 "Mono",
                 "Flux",
                 "Promise",
+                "Single",
             ):
                 return self._normalize_java_type(inner)
 

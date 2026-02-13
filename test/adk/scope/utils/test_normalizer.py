@@ -157,6 +157,23 @@ class TestTypeNormalizer(unittest.TestCase):
             ["STRING", "NULL"],
         )
 
+    def test_go_normalization(self):
+        self.assertEqual(self.normalizer.normalize("string", "go"), ["STRING"])
+        self.assertEqual(self.normalizer.normalize("int64", "go"), ["NUMBER"])
+        self.assertEqual(self.normalizer.normalize("bool", "go"), ["BOOLEAN"])
+        self.assertEqual(self.normalizer.normalize("[]string", "go"), ["LIST"])
+        self.assertEqual(self.normalizer.normalize("[5]int", "go"), ["LIST"])
+        self.assertEqual(
+            self.normalizer.normalize("map[string]interface{}", "go"), ["MAP"]
+        )
+        self.assertEqual(self.normalizer.normalize("*string", "go"), ["STRING"])
+        self.assertEqual(self.normalizer.normalize("*[]Event", "go"), ["LIST"])
+        self.assertEqual(
+            self.normalizer.normalize("interface{}", "go"), ["OBJECT"]
+        )
+        self.assertEqual(self.normalizer.normalize("any", "go"), ["OBJECT"])
+        self.assertEqual(self.normalizer.normalize("error", "go"), ["OBJECT"])
+
     def test_edge_cases(self):
         self.assertEqual(self.normalizer.normalize("", "python"), ["OBJECT"])
         self.assertEqual(self.normalizer.normalize(" ", "python"), ["OBJECT"])

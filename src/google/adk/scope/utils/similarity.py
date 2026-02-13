@@ -35,11 +35,6 @@ class SimilarityScorer:
         assert "namespace" in self.weights
         assert "parameters" in self.weights
         assert "return_type" in self.weights
-        self._early_exit_threshold = alpha * (
-            self.weights["name"]
-            + self.weights["member_of"]
-            + self.weights["namespace"]
-        )
 
     def _fuzzy_type_match(self, types1: list, types2: list) -> float:
         """Calculates a fuzzy similarity score between two lists of types."""

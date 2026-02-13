@@ -6,8 +6,12 @@ import yaml
 from google.protobuf import text_format
 from google.protobuf.json_format import MessageToDict, MessageToJson
 
-from google.adk.scope.extractors import (extractor_java, extractor_py,
-                                         extractor_ts)
+from google.adk.scope.extractors import (
+    extractor_go,
+    extractor_java,
+    extractor_py,
+    extractor_ts,
+)
 from google.adk.scope.features_pb2 import FeatureRegistry
 from google.adk.scope.utils.args import parse_args
 
@@ -26,18 +30,21 @@ EXTRACTORS = {
     "python": extractor_py,
     "typescript": extractor_ts,
     "java": extractor_java,
+    "go": extractor_go,
 }
 
 REPO_ROOT_MARKERS = {
     "python": ["src"],
     "typescript": ["package.json", "tsconfig.json"],
     "java": ["pom.xml", "build.gradle", "build.gradle.kts"],
+    "go": ["go.mod"],
 }
 
 REPO_SRC_SUBDIRS = {
     "python": ["src"],
     "typescript": ["core/src", "src"],
     "java": ["src/main/java", "src"],
+    "go": [],
 }
 
 
@@ -105,7 +112,7 @@ def main():
         repo_root = input_path.parent
         if root := get_repo_root(input_path, args.language):
             repo_root = root
-        
+
         config = get_config(repo_root)
         source_root = config.get(args.language, {}).get("source_root", ".")
 
@@ -219,7 +226,11 @@ def main():
     prefix = (
         "py"
         if args.language in {"python", "py"}
-        else "ts" if args.language in {"typescript", "ts"} else "java"
+        else (
+            "ts"
+            if args.language in {"typescript", "ts"}
+            else "java" if args.language == "java" else "go"
+        )
     )
     base_filename = f"{prefix}"
 

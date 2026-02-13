@@ -9,34 +9,38 @@ from google.protobuf import descriptor_pool as _descriptor_pool
 from google.protobuf import runtime_version as _runtime_version
 from google.protobuf import symbol_database as _symbol_database
 from google.protobuf.internal import builder as _builder
-
 _runtime_version.ValidateProtobufRuntimeVersion(
-    _runtime_version.Domain.PUBLIC, 6, 33, 4, "", "features.proto"
+    _runtime_version.Domain.PUBLIC,
+    6,
+    33,
+    4,
+    '',
+    'features.proto'
 )
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
-    b'\n\x0e\x66\x65\x61tures.proto\x12\x0fgoogle.adk.meta"\xc4\x01\n\x05Param\x12\x15\n\roriginal_name\x18\x01 \x01(\t\x12\x17\n\x0fnormalized_name\x18\x02 \x01(\t\x12\x16\n\x0eoriginal_types\x18\x03 \x03(\t\x12\x34\n\x10normalized_types\x18\x04 \x03(\x0e\x32\x1a.google.adk.meta.ParamType\x12\x18\n\x0b\x64\x65scription\x18\x05 \x01(\tH\x00\x88\x01\x01\x12\x13\n\x0bis_optional\x18\x06 \x01(\x08\x42\x0e\n\x0c_description"\xdc\x04\n\x07\x46\x65\x61ture\x12\x15\n\roriginal_name\x18\x01 \x01(\t\x12\x17\n\x0fnormalized_name\x18\x02 \x01(\t\x12\x18\n\x0b\x64\x65scription\x18\x03 \x01(\tH\x00\x88\x01\x01\x12\x11\n\tmember_of\x18\x04 \x01(\t\x12\x1c\n\x14normalized_member_of\x18\x05 \x01(\t\x12\x38\n\x08maturity\x18\x06 \x01(\x0e\x32!.google.adk.meta.Feature.MaturityH\x01\x88\x01\x01\x12+\n\x04type\x18\x07 \x01(\x0e\x32\x1d.google.adk.meta.Feature.Type\x12\x11\n\tfile_path\x18\x08 \x01(\t\x12\x11\n\tnamespace\x18\t \x01(\t\x12\x1c\n\x14normalized_namespace\x18\n \x01(\t\x12*\n\nparameters\x18\x0b \x03(\x0b\x32\x16.google.adk.meta.Param\x12\x1d\n\x15original_return_types\x18\x0c \x03(\t\x12\x1f\n\x17normalized_return_types\x18\r \x03(\t\x12\x12\n\x05\x61sync\x18\x0e \x01(\x08H\x02\x88\x01\x01"6\n\x08Maturity\x12\x10\n\x0c\x45XPERIMENTAL\x10\x00\x12\x08\n\x04\x42\x45TA\x10\x01\x12\x0e\n\nDEPRECATED\x10\x02"L\n\x04Type\x12\x0c\n\x08\x46UNCTION\x10\x00\x12\x13\n\x0fINSTANCE_METHOD\x10\x01\x12\x10\n\x0c\x43LASS_METHOD\x10\x02\x12\x0f\n\x0b\x43ONSTRUCTOR\x10\x03\x42\x0e\n\x0c_descriptionB\x0b\n\t_maturityB\x08\n\x06_async"`\n\x0f\x46\x65\x61tureRegistry\x12\x10\n\x08language\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\x12*\n\x08\x66\x65\x61tures\x18\x03 \x03(\x0b\x32\x18.google.adk.meta.Feature*o\n\tParamType\x12\n\n\x06OBJECT\x10\x00\x12\n\n\x06STRING\x10\x01\x12\n\n\x06NUMBER\x10\x02\x12\x0b\n\x07\x42OOLEAN\x10\x03\x12\x08\n\x04LIST\x10\x04\x12\x07\n\x03MAP\x10\x05\x12\x07\n\x03SET\x10\x06\x12\x0b\n\x07UNKNOWN\x10\x07\x12\x08\n\x04NULL\x10\x08\x62\x06proto3'
-)
+
+
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0e\x66\x65\x61tures.proto\x12\x0fgoogle.adk.meta\"\xc4\x01\n\x05Param\x12\x15\n\roriginal_name\x18\x01 \x01(\t\x12\x17\n\x0fnormalized_name\x18\x02 \x01(\t\x12\x16\n\x0eoriginal_types\x18\x03 \x03(\t\x12\x34\n\x10normalized_types\x18\x04 \x03(\x0e\x32\x1a.google.adk.meta.ParamType\x12\x18\n\x0b\x64\x65scription\x18\x05 \x01(\tH\x00\x88\x01\x01\x12\x13\n\x0bis_optional\x18\x06 \x01(\x08\x42\x0e\n\x0c_description\"\xdc\x04\n\x07\x46\x65\x61ture\x12\x15\n\roriginal_name\x18\x01 \x01(\t\x12\x17\n\x0fnormalized_name\x18\x02 \x01(\t\x12\x18\n\x0b\x64\x65scription\x18\x03 \x01(\tH\x00\x88\x01\x01\x12\x11\n\tmember_of\x18\x04 \x01(\t\x12\x1c\n\x14normalized_member_of\x18\x05 \x01(\t\x12\x38\n\x08maturity\x18\x06 \x01(\x0e\x32!.google.adk.meta.Feature.MaturityH\x01\x88\x01\x01\x12+\n\x04type\x18\x07 \x01(\x0e\x32\x1d.google.adk.meta.Feature.Type\x12\x11\n\tfile_path\x18\x08 \x01(\t\x12\x11\n\tnamespace\x18\t \x01(\t\x12\x1c\n\x14normalized_namespace\x18\n \x01(\t\x12*\n\nparameters\x18\x0b \x03(\x0b\x32\x16.google.adk.meta.Param\x12\x1d\n\x15original_return_types\x18\x0c \x03(\t\x12\x1f\n\x17normalized_return_types\x18\r \x03(\t\x12\x12\n\x05\x61sync\x18\x0e \x01(\x08H\x02\x88\x01\x01\"6\n\x08Maturity\x12\x10\n\x0c\x45XPERIMENTAL\x10\x00\x12\x08\n\x04\x42\x45TA\x10\x01\x12\x0e\n\nDEPRECATED\x10\x02\"L\n\x04Type\x12\x0c\n\x08\x46UNCTION\x10\x00\x12\x13\n\x0fINSTANCE_METHOD\x10\x01\x12\x10\n\x0c\x43LASS_METHOD\x10\x02\x12\x0f\n\x0b\x43ONSTRUCTOR\x10\x03\x42\x0e\n\x0c_descriptionB\x0b\n\t_maturityB\x08\n\x06_async\"`\n\x0f\x46\x65\x61tureRegistry\x12\x10\n\x08language\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\x12*\n\x08\x66\x65\x61tures\x18\x03 \x03(\x0b\x32\x18.google.adk.meta.Feature*o\n\tParamType\x12\n\n\x06OBJECT\x10\x00\x12\n\n\x06STRING\x10\x01\x12\n\n\x06NUMBER\x10\x02\x12\x0b\n\x07\x42OOLEAN\x10\x03\x12\x08\n\x04LIST\x10\x04\x12\x07\n\x03MAP\x10\x05\x12\x07\n\x03SET\x10\x06\x12\x0b\n\x07UNKNOWN\x10\x07\x12\x08\n\x04NULL\x10\x08\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
-_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, "features_pb2", _globals)
+_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'features_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
-    DESCRIPTOR._loaded_options = None
-    _globals["_PARAMTYPE"]._serialized_start = 939
-    _globals["_PARAMTYPE"]._serialized_end = 1050
-    _globals["_PARAM"]._serialized_start = 36
-    _globals["_PARAM"]._serialized_end = 232
-    _globals["_FEATURE"]._serialized_start = 235
-    _globals["_FEATURE"]._serialized_end = 839
-    _globals["_FEATURE_MATURITY"]._serialized_start = 668
-    _globals["_FEATURE_MATURITY"]._serialized_end = 722
-    _globals["_FEATURE_TYPE"]._serialized_start = 724
-    _globals["_FEATURE_TYPE"]._serialized_end = 800
-    _globals["_FEATUREREGISTRY"]._serialized_start = 841
-    _globals["_FEATUREREGISTRY"]._serialized_end = 937
+  DESCRIPTOR._loaded_options = None
+  _globals['_PARAMTYPE']._serialized_start=939
+  _globals['_PARAMTYPE']._serialized_end=1050
+  _globals['_PARAM']._serialized_start=36
+  _globals['_PARAM']._serialized_end=232
+  _globals['_FEATURE']._serialized_start=235
+  _globals['_FEATURE']._serialized_end=839
+  _globals['_FEATURE_MATURITY']._serialized_start=668
+  _globals['_FEATURE_MATURITY']._serialized_end=722
+  _globals['_FEATURE_TYPE']._serialized_start=724
+  _globals['_FEATURE_TYPE']._serialized_end=800
+  _globals['_FEATUREREGISTRY']._serialized_start=841
+  _globals['_FEATUREREGISTRY']._serialized_end=937
 # @@protoc_insertion_point(module_scope)

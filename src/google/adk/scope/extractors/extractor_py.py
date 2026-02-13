@@ -89,6 +89,9 @@ def extract_features(
     (function_definition
       name: (identifier) @name
     ) @func
+    (class_definition
+      name: (identifier) @name
+    ) @class
     """,
     )
 
@@ -97,11 +100,15 @@ def extract_features(
 
     # captures is a dict {capture_name: [nodes]}
     func_nodes = captures.get("func", [])
+    class_nodes = captures.get("class", [])
     logger.debug(
-        "Found %d potential function nodes in %s", len(func_nodes), file_path
+        "Found %d potential function nodes and %d class nodes in %s",
+        len(func_nodes),
+        len(class_nodes),
+        file_path,
     )
 
-    for node in func_nodes:
+    for node in func_nodes + class_nodes:
         # The node is a function_definition
         feature = processor.process(node, file_path, repo_root)
         if feature:

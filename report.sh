@@ -52,7 +52,7 @@ get_lang_code() {
         PYTHON) echo "py" ;;
         TYPESCRIPT) echo "ts" ;;
         JAVA) echo "java" ;;
-        GOLANG) echo "go" ;;
+        GO) echo "go" ;;
         *) echo "" ;;
     esac
 }
