@@ -13,10 +13,7 @@ echo "Extracting Go features..."
 # Py -> TS
 
 echo "Generating symmetric reports..."
-./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type symmetric
-
-echo "Generating directional reports..  ."
-./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type directional
+./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type md
 
 echo "Generating raw reports..."
 ./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type raw
@@ -24,16 +21,15 @@ echo "Generating raw reports..."
 # Py -> Java
 
 echo "Generating symmetric reports..."
-./report.sh --base output/py.txtpb --target output/java.txtpb --output ./output --report-type symmetric
+./report.sh --base output/py.txtpb --target output/java.txtpb --output ./output --report-type md
 
-echo "Generating directional reports (py->java)..."
-./report.sh --base output/py.txtpb --target output/java.txtpb --output ./output --report-type directional
-
+echo "Generating raw reports..."
+./report.sh --base output/py.txtpb --target output/java.txtpb --output ./output --report-type raw
 
 # Py -> Go
 
 echo "Generating symmetric reports..."
-./report.sh --base output/py.txtpb --target output/go.txtpb --output ./output --report-type symmetric
+./report.sh --base output/py.txtpb --target output/go.txtpb --output ./output --report-type md
 
-echo "Generating directional reports (py->go)..."
-./report.sh --base output/py.txtpb --target output/go.txtpb --output ./output --report-type directional
+echo "Generating raw reports..."
+./report.sh --base output/py.txtpb --target output/go.txtpb --output ./output --report-type raw

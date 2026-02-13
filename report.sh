@@ -4,7 +4,7 @@
 set -e
 
 # Default values
-REPORT_TYPE="symmetric"
+REPORT_TYPE="md"
 ALPHA="0.8"
 VERBOSE=""
 
@@ -66,7 +66,7 @@ if [ "$REPORT_TYPE" == "raw" ]; then
 else
     EXTENSION="md"
 fi
-OUTPUT_FILENAME="${BASE_LANG}_${TARGET_LANG}_${REPORT_TYPE}.${EXTENSION}"
+OUTPUT_FILENAME="${BASE_LANG}_${TARGET_LANG}.${EXTENSION}"
 FULL_OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
 
 # Determine the directory where this script is located

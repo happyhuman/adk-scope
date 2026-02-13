@@ -146,7 +146,21 @@ def extract_features(
 
 
 def get_version(repo_root: pathlib.Path) -> str:
-    """Get the module path from a go.mod file."""
+    """Get the version of the ADK from internal/version/version.go."""
+    version_path = repo_root / "internal" / "version" / "version.go"
+    if version_path.exists():
+        try:
+            content = version_path.read_text()
+            for line in content.splitlines():
+                if "const Version string =" in line:
+                    # e.g., const Version string = "0.3.0"
+                    parts = line.split('"')
+                    if len(parts) >= 3:
+                        return parts[1]
+        except Exception as e:
+            logger.warning("Failed to read version.go file: %s", e)
+    
+    # Fallback to reading go.mod module path if version isn't found
     go_mod_path = repo_root / "go.mod"
     if go_mod_path.exists():
         try:
@@ -156,4 +170,5 @@ def get_version(repo_root: pathlib.Path) -> str:
                     return line.split()[1]
         except Exception as e:
             logger.warning("Failed to read go.mod file: %s", e)
+    
     return ""

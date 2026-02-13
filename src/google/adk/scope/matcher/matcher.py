@@ -132,7 +132,8 @@ def process_module(
     base_list: List[features_pb2.Feature],
     target_list: List[features_pb2.Feature],
     alpha: float,
-    report_type: str,
+    base_lang_name: str,
+    target_lang_name: str,
     base_lang_code: str,
     target_lang_code: str,
 ) -> Dict:
@@ -149,13 +150,8 @@ def process_module(
     unmatched_base = base_list
     unmatched_target = target_list
 
-    if report_type == "symmetric":
-        union_size = mod_base_count + mod_target_count - mod_solid_count
-        mod_score = mod_solid_count / union_size if union_size > 0 else 1.0
-    else:  # directional
-        precision = stats.calculate_precision(mod_solid_count, mod_target_count)
-        recall = stats.calculate_recall(mod_solid_count, mod_base_count)
-        mod_score = stats.calculate_f1(precision, recall)
+    union_size = mod_base_count + mod_target_count - mod_solid_count
+    mod_score = mod_solid_count / union_size if union_size > 0 else 1.0
 
     status_icon = (
         "✅" if mod_score == 1.0 else "⚠️" if mod_score >= 0.8 else "❌"
@@ -164,22 +160,16 @@ def process_module(
     module_filename = f"{module_safe_name}.md"
 
     details_link = f"[View Details]({{modules_dir}}/{module_filename})"
-    if report_type == "symmetric":
-        adk_parts = []
-        if mod_base_count > 0:
-            adk_parts.append(base_lang_code)
-        if mod_target_count > 0:
-            adk_parts.append(target_lang_code)
-        adk_value = ", ".join(adk_parts)
-        row_content = (
-            f"| {adk_value} | `{module}` | {mod_base_count} | {mod_score:.2%} |"
-            f" {status_icon} | {details_link} |"
-        )
-    else:
-        row_content = (
-            f"| `{module}` | {mod_base_count} | {mod_score:.2%} | {status_icon}"
-            f" | {details_link} |"
-        )
+    adk_parts = []
+    if mod_base_count > 0:
+        adk_parts.append(base_lang_code)
+    if mod_target_count > 0:
+        adk_parts.append(target_lang_code)
+    adk_value = ", ".join(adk_parts)
+    row_content = (
+        f"| {adk_value} | `{module}` | {mod_base_count} | {mod_score:.2%} |"
+        f" {status_icon} | {details_link} |"
+    )
 
     # Module Content
     mod_lines = [
@@ -188,21 +178,7 @@ def process_module(
         "",
         f"**Score:** {mod_score:.2%} ({status_icon})",
     ]
-    if report_type == "directional":
-        mod_lines.extend(
-            [
-                "\n| Metric | Score |",
-                "|---|---|",
-                f"| **Precision** | {precision:.2%} |",
-                f"| **Recall** | {recall:.2%} |",
-            ]
-        )
-
-    mod_total_features = (
-        (mod_base_count + mod_target_count - mod_solid_count)
-        if report_type == "symmetric"
-        else mod_base_count
-    )
+    mod_total_features = mod_base_count + mod_target_count - mod_solid_count
     mod_lines.extend(["", f"**Features:** {mod_total_features}", ""])
 
     solid_matches.sort(
@@ -214,12 +190,11 @@ def process_module(
 
     if solid_matches:
         mod_lines.append(
-            f"### ✅ {'Solid' if report_type == 'symmetric' else 'Matched'}"
-            " Features"
+            "### ✅ Solid Features"
         )
         mod_lines.extend(
             [
-                "| Type | Base Feature | Target Feature | Similarity Score |",
+                f"| Type | {base_lang_name} Feature | {target_lang_name} Feature | Similarity Score |",
                 "|---|---|---|---|",
             ]
         )
@@ -237,7 +212,7 @@ def process_module(
         mod_lines.extend(
             [
                 "### ⚠️ Potential Matches",
-                "| Type | Base Feature | Closest Target Candidate"
+                f"| Type | {base_lang_name} Feature | Closest {target_lang_name} Candidate"
                 " | Similarity |",
                 "|---|---|---|---|",
             ]
@@ -252,7 +227,7 @@ def process_module(
         )
         mod_lines.append("")
 
-    if report_type == "symmetric" and (unmatched_base or unmatched_target):
+    if unmatched_base or unmatched_target:
         mod_lines.extend(
             [
                 "### ❌ Unmatched Features",
@@ -261,18 +236,10 @@ def process_module(
             ]
         )
         mod_lines.extend(
-            [f"| `{_format_feature(f)}` | Target |" for f in unmatched_base]
+            [f"| `{_format_feature(f)}` | {target_lang_name} |" for f in unmatched_base]
         )
         mod_lines.extend(
-            [f"| `{_format_feature(f)}` | Base |" for f in unmatched_target]
-        )
-        mod_lines.append("")
-    elif report_type == "directional" and unmatched_base:
-        mod_lines.extend(
-            ["### ❌ Missing in Target", "| Missing Feature |", "|---|"]
-        )
-        mod_lines.extend(
-            [f"| `{_format_feature(f)}` |" for f in unmatched_base]
+            [f"| `{_format_feature(f)}` | {base_lang_name} |" for f in unmatched_target]
         )
         mod_lines.append("")
 

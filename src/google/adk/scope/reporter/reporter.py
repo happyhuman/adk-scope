@@ -37,7 +37,7 @@ def _group_features_by_module(
 def _get_language_code(language_name: str) -> str:
     """Returns a short code for the language."""
     name = language_name.upper()
-    if name == {"PYTHON", "PY"}:
+    if name in {"PYTHON", "PY"}:
         return "py"
     elif name in {"TYPESCRIPT", "TS"}:
         return "ts"
@@ -47,6 +47,21 @@ def _get_language_code(language_name: str) -> str:
         return "go"
     else:
         return name.lower()
+
+
+def _get_language_name(language_name: str) -> str:
+    """Returns a properly capitalized display name for the language."""
+    name = language_name.upper()
+    if name in {"PYTHON", "PY"}:
+        return "Python"
+    elif name in {"TYPESCRIPT", "TS"}:
+        return "TypeScript"
+    elif name == "JAVA":
+        return "Java"
+    elif name in {"GOLANG", "GO"}:
+        return "Go"
+    else:
+        return language_name.title()
 
 
 def _read_feature_registry(file_path: str) -> features_pb2.FeatureRegistry:
@@ -61,7 +76,7 @@ def match_registries(
     base_registry: features_pb2.FeatureRegistry,
     target_registry: features_pb2.FeatureRegistry,
     alpha: float,
-    report_type: str = "symmetric",
+    report_type: str = "md",
 ) -> MatchResult:
     """Matches features and generates a master report + module sub-reports."""
     reporter = ReportGenerator(
@@ -92,10 +107,8 @@ class ReportGenerator:
         """Generates report."""
         if report_type == "raw":
             return self.generate_raw_report()
-        elif report_type == "directional":
-            return self.generate_directional_report()
-        elif report_type == "symmetric":
-            return self.generate_symmetric_report()
+        elif report_type == "md":
+            return self.generate_md_report()
         else:
             raise ValueError(f"Unknown report type: {report_type}")
 
@@ -190,113 +203,18 @@ class ReportGenerator:
             module_files={},
         )
 
-    def generate_directional_report(self) -> MatchResult:
-        """Generates a directional report."""
-        all_modules = sorted(self.features_base.keys())
-        master_lines = []
-        title_suffix = "Directional"
-        master_lines.extend(
-            [
-                f"# Feature Matching Report: {title_suffix}",
-                f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                "",
-                (
-                    f"**Base:** {self.base_registry.language}"
-                    f" ({self.base_registry.version})"
-                ),
-                (
-                    f"**Target:** {self.target_registry.language}"
-                    f" ({self.target_registry.version})"
-                ),
-            ]
-        )
-
-        global_score_idx = len(master_lines)
-        master_lines.append("GLOBAL_SCORE_PLACEHOLDER")
-        master_lines.append("")
-
-        header = "| Module | Features (Base) | Score | Status | Details |"
-        divider = "|---|---|---|---|---|"
-        master_lines.extend(["## Module Summary", header, divider])
-
-        module_files = {}
-        module_rows = []
-        total_solid_matches = 0
-
-        base_code = _get_language_code(self.base_registry.language)
-        target_code = _get_language_code(self.target_registry.language)
-
-        for module in all_modules:
-            mod_base_list = self.features_base.get(module, [])
-            mod_target_list = self.features_target.get(module, [])
-
-            results = matcher.process_module(
-                module,
-                mod_base_list,
-                mod_target_list,
-                self.alpha,
-                "directional",
-                base_code,
-                target_code,
-            )
-            total_solid_matches += results["solid_matches_count"]
-            module_rows.append((results["score"], results["row_content"]))
-            if results.get("module_filename"):
-                module_files[results["module_filename"]] = results[
-                    "module_content"
-                ]
-
-        module_rows.sort(key=lambda x: x[0], reverse=True)
-        master_lines.extend([row for _, row in module_rows])
-
-        total_base_features = len(self.base_registry.features)
-        total_target_features = len(self.target_registry.features)
-
-        precision = stats.calculate_precision(
-            total_solid_matches, total_target_features
-        )
-        recall = stats.calculate_recall(
-            total_solid_matches, total_base_features
-        )
-        parity_score = stats.calculate_f1(precision, recall)
-
-        global_stats = (
-            "\n| Metric | Score |\n"
-            "|---|---|\n"
-            f"| **Precision** | {precision:.2%} |\n"
-            f"| **Recall** | {recall:.2%} |\n"
-            f"| **F1 Score** | {parity_score:.2%} |\n\n"
-            "> **Precision**: Of all features in the target, how many are "
-            "correct matches to the base? (High score = low number of extra "
-            "features in target)\n\n"
-            "> **Recall**: Of all features in the base, how many were found in "
-            "the target? (High score = low number of missing features in "
-            "target)\n\n"
-            "> **F1 Score**: A weighted average of Precision and Recall, "
-            "providing a single measure of how well the target feature set "
-            "matches the base."
-        )
-
-        master_lines[global_score_idx] = global_stats
-
-        return MatchResult(
-            master_content="\n".join(master_lines).strip(),
-            module_files=module_files,
-        )
-
-    def generate_symmetric_report(self) -> MatchResult:
-        """Generates a symmetric report."""
+    def generate_md_report(self) -> MatchResult:
+        """Generates a Markdown parity report."""
         all_modules = sorted(
             set(self.features_base.keys()) | set(self.features_target.keys())
         )
         master_lines = []
-        title_suffix = "Symmetric"
         master_lines.extend(
             [
-                f"# Feature Matching Report: {title_suffix}",
+                "# Feature Matching Parity Report",
                 f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 "",
-                "| Registry | Language | Version |",
+                "| Role | Language | Version |",
                 "| :--- | :--- | :--- |",
                 (
                     f"| **Base** | {self.base_registry.language} |"
@@ -314,7 +232,10 @@ class ReportGenerator:
         master_lines.append("GLOBAL_SCORE_PLACEHOLDER")
         master_lines.append("")
 
-        header = "| ADK | Module | Features (Base) | Score | Status | Details |"
+        b_lang = _get_language_name(self.base_registry.language)
+        t_lang = _get_language_name(self.target_registry.language)
+
+        header = f"| ADK | Module | Features ({b_lang}) | Score | Status | Details |"
         divider = "|---|---|---|---|---|---|"
 
         master_lines.extend(["## Module Summary", header, divider])
@@ -335,7 +256,8 @@ class ReportGenerator:
                 mod_base_list,
                 mod_target_list,
                 self.alpha,
-                "symmetric",
+                b_lang,
+                t_lang,
                 base_code,
                 target_code,
             )
@@ -352,17 +274,28 @@ class ReportGenerator:
         total_base_features = len(self.base_registry.features)
         total_target_features = len(self.target_registry.features)
 
-        union_size = (
-            total_base_features + total_target_features - total_solid_matches
-        )
-        parity_score = (
-            total_solid_matches / union_size if union_size > 0 else 1.0
-        )
+        # Calculate metrics for the summary table
+        base_exclusive = total_base_features - total_solid_matches
+        target_exclusive = total_target_features - total_solid_matches
+
+        union_size = total_base_features + total_target_features - total_solid_matches
+        parity_score = total_solid_matches / union_size if union_size > 0 else 1.0
+
+        b_lang = _get_language_name(self.base_registry.language)
+        t_lang = _get_language_name(self.target_registry.language)
+
         global_stats = (
-            f"**Jaccard Index:** {parity_score:.2%}\n\n"
-            "> The Jaccard Index measures the similarity between the "
-            "two feature sets. A score of 100% indicates that both languages "
-            "have identical features."
+            "## Summary\n\n"
+            "| Feature Category | Count | Details |\n"
+            "| :--- | :--- | :--- |\n"
+            f"| **✅ Common Shared** | **{total_solid_matches}** | "
+            f"Implemented in both SDKs |\n"
+            f"| **📦 Exclusive to `{b_lang}`** | **{base_exclusive}** | "
+            f"Requires implementation in `{t_lang}` |\n"
+            f"| **📦 Exclusive to `{t_lang}`** | **{target_exclusive}** | "
+            f"Requires implementation in `{b_lang}` |\n"
+            f"| **📊 Jaccard Score** | **{parity_score:.2%}** | "
+            f"Overall Parity ({total_solid_matches} / {union_size}) |"
         )
 
         master_lines[global_score_idx] = global_stats
@@ -400,9 +333,9 @@ def main():
     )
     parser.add_argument(
         "--report-type",
-        choices=["symmetric", "directional", "raw"],
-        default="symmetric",
-        help="Type of gap report to generate (symmetric, directional, or raw).",
+        choices=["md", "raw"],
+        default="md",
+        help="Type of gap report to generate (md or raw).",
     )
     adk_args.add_verbose_argument(parser)
     args = parser.parse_args()

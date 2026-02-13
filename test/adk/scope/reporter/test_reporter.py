@@ -106,24 +106,29 @@ class TestReporter(unittest.TestCase):
         )
         target_registry.features.extend([f2, f_near_target])
 
-        # Test Symmetric Report
-        result_sym = reporter.match_registries(
-            base_registry, target_registry, 0.9, report_type="symmetric"
+        # Test Markdown Report
+        result_md = reporter.match_registries(
+            base_registry, target_registry, 0.9, report_type="md"
         )
-        report_sym = result_sym.master_content
+        report_md = result_md.master_content
 
         # 1. Verify Master Report Structure
-        self.assertIn("# Feature Matching Report: Symmetric", report_sym)
-        self.assertIn("**Jaccard Index:** 25.00%", report_sym)
-        self.assertIn("## Module Summary", report_sym)
+        self.assertIn("# Feature Matching Parity Report", report_md)
+        self.assertIn("## Summary", report_md)
+        self.assertIn("| **✅ Common Shared** | **1** |", report_md)
+        self.assertIn("| **📦 Exclusive to `Python`** | **2** |", report_md)
+        self.assertIn("| **📦 Exclusive to `TypeScript`** | **1** |", report_md)
+        self.assertIn("| **📊 Jaccard Score** | **25.00%** |", report_md)
+        self.assertIn("## Module Summary", report_md)
 
         # Check for module entry in master summary
-        self.assertIn("| `n_same` |", report_sym)
-        self.assertIn("[View Details]({modules_dir}/n_same.md)", report_sym)
+        self.assertIn("| ADK | Module | Features (Python) | Score | Status | Details |", report_md)
+        self.assertIn("| `n_same` |", report_md)
+        self.assertIn("[View Details]({modules_dir}/n_same.md)", report_md)
 
         # 2. Verify Module Content
-        self.assertIn("n_same.md", result_sym.module_files)
-        module_content = result_sym.module_files["n_same.md"]
+        self.assertIn("n_same.md", result_md.module_files)
+        module_content = result_md.module_files["n_same.md"]
 
         self.assertIn("# Module: `n_same`", module_content)
         self.assertIn("**Features:** 3", module_content)
@@ -131,7 +136,7 @@ class TestReporter(unittest.TestCase):
         # Solid Matches
         self.assertIn("### ✅ Solid Features", module_content)
         self.assertIn(
-            "| Type | Base Feature | Target Feature | Similarity Score |",
+            "| Type | Python Feature | TypeScript Feature | Similarity Score |",
             module_content,
         )
         self.assertIn(
@@ -142,7 +147,7 @@ class TestReporter(unittest.TestCase):
         # Potential Matches (formerly Near Misses)
         self.assertIn("### ⚠️ Potential Matches", module_content)
         self.assertIn(
-            "| Type | Base Feature | Closest Target Candidate | Similarity |",
+            "| Type | Python Feature | Closest TypeScript Candidate | Similarity |",
             module_content,
         )
         self.assertIn(
@@ -152,51 +157,13 @@ class TestReporter(unittest.TestCase):
         )
 
         # Unmatched / Gaps (in 'stuff' module)
-        self.assertIn("stuff.md", result_sym.module_files)
-        stuff_content = result_sym.module_files["stuff.md"]
+        self.assertIn("stuff.md", result_md.module_files)
+        stuff_content = result_md.module_files["stuff.md"]
         self.assertIn("### ❌ Unmatched Features", stuff_content)
-        self.assertIn("| `totally_diff` | Target |", stuff_content)
+        self.assertIn("| `totally_diff` | TypeScript |", stuff_content)
         self.assertIn("**Features:** 1", stuff_content)
 
-        # Test Directional Report
-        result_dir = reporter.match_registries(
-            base_registry, target_registry, 0.9, report_type="directional"
-        )
-        report_dir = result_dir.master_content
 
-        self.assertIn("| **F1 Score** | 40.00% |", report_dir)
-        self.assertIn("n_same.md", result_dir.module_files)
-
-        mod_dir_content = result_dir.module_files["n_same.md"]
-
-        # Solid Matches
-        self.assertIn("### ✅ Matched Features", mod_dir_content)
-        self.assertIn(
-            "| Type | Base Feature | Target Feature | Similarity Score |",
-            mod_dir_content,
-        )
-        self.assertIn(
-            "| method | `BaseClass.fSameBase` | `TargetClass.fSameTarget` |",
-            mod_dir_content,
-        )
-
-        # Potential Matches
-        self.assertIn("### ⚠️ Potential Matches", mod_dir_content)
-        self.assertIn(
-            "| Type | Base Feature | Closest Target Candidate | Similarity |",
-            mod_dir_content,
-        )
-        self.assertIn(
-            "| method | `base_member.base_name` | "
-            "`target_member.target_name` |",
-            mod_dir_content,
-        )
-
-        # Unmatched / Gaps (in 'stuff' module)
-        self.assertIn("stuff.md", result_dir.module_files)
-        stuff_dir_content = result_dir.module_files["stuff.md"]
-        self.assertIn("### ❌ Missing in Target", stuff_dir_content)
-        self.assertIn("| `totally_diff` |", stuff_dir_content)
 
     def test_match_registries_raw(self):
         f1 = features_pb2.Feature(
@@ -216,7 +183,7 @@ class TestReporter(unittest.TestCase):
         csv_content = result.master_content
 
         expected_header = (
-            "python_namespace,python_member_of,python_name,ts_namespace,"
+            "py_namespace,py_member_of,py_name,ts_namespace,"
             "ts_member_of,ts_name,type,score"
         )
         self.assertIn(expected_header, csv_content)
@@ -273,7 +240,8 @@ class TestReporter(unittest.TestCase):
                 base_list=[f_base],
                 target_list=[f_target],
                 alpha=0.9,
-                report_type="symmetric",
+                base_lang_name="Python",
+                target_lang_name="TypeScript",
                 base_lang_code="py",
                 target_lang_code="ts",
             )
@@ -312,13 +280,13 @@ class TestReporter(unittest.TestCase):
             ).generate_raw_report()
 
             self.assertIn(
-                "python_namespace,python_member_of,python_name",
+                "py_namespace,py_member_of,py_name",
                 result.master_content,
             )
             self.assertIn("n1,c1,f1_base", result.master_content)
 
-    def test_generate_symmetric_report(self):
-        """Tests the symmetric report generation."""
+    def test_generate_md_report(self):
+        """Tests the md report generation."""
         base_registry = features_pb2.FeatureRegistry(
             language="Python", version="1.0.0"
         )
@@ -341,49 +309,17 @@ class TestReporter(unittest.TestCase):
 
             result = reporter.ReportGenerator(
                 base_registry, target_registry, 0.9
-            ).generate_symmetric_report()
+            ).generate_md_report()
 
             self.assertIn(
-                "# Feature Matching Report: Symmetric", result.master_content
+                "# Feature Matching Parity Report", result.master_content
             )
-            self.assertIn("**Jaccard Index:**", result.master_content)
+            self.assertIn("## Summary", result.master_content)
             self.assertIn("## Module Summary", result.master_content)
             self.assertIn("| `n1` |", result.master_content)
             self.assertIn("n1.md", result.module_files)
 
-    def test_generate_directional_report(self):
-        """Tests the directional report generation."""
-        base_registry = features_pb2.FeatureRegistry(
-            language="Python", version="1.0.0"
-        )
-        f1 = base_registry.features.add()
-        f1.namespace = "n1"
-        target_registry = features_pb2.FeatureRegistry(
-            language="TypeScript", version="2.0.0"
-        )
 
-        with patch(
-            "google.adk.scope.reporter.reporter.matcher.process_module"
-        ) as mock_process:
-            mock_process.return_value = {
-                "solid_matches_count": 1,
-                "score": 1.0,
-                "row_content": "| `n1` | 1 | 100.00% | ✅ | n1.md |",
-                "module_filename": "n1.md",
-                "module_content": "# Module: `n1`",
-            }
-
-            result = reporter.ReportGenerator(
-                base_registry, target_registry, 0.9
-            ).generate_directional_report()
-
-            self.assertIn(
-                "# Feature Matching Report: Directional", result.master_content
-            )
-            self.assertIn("| **F1 Score** |", result.master_content)
-            self.assertIn("## Module Summary", result.master_content)
-            self.assertIn("| `n1` |", result.master_content)
-            self.assertIn("n1.md", result.module_files)
 
     def test_raw_integration(self):
         """Tests the raw report generation end-to-end."""
@@ -460,7 +396,7 @@ class TestReporter(unittest.TestCase):
         ).generate_raw_report()
 
         self.assertIn(
-            "python_namespace,python_member_of,python_name,ts_namespace,ts_member_of,ts_name,type,score",
+            "py_namespace,py_member_of,py_name,ts_namespace,ts_member_of,ts_name,type,score",
             result.master_content,
         )
 
