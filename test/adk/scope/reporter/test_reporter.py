@@ -108,7 +108,7 @@ class TestReporter(unittest.TestCase):
 
         # Test Markdown Report
         result_md = reporter.match_registries(
-            base_registry, target_registry, 0.9, report_type="md"
+            [base_registry, target_registry], 0.9, report_type="md"
         )
         report_md = result_md.master_content
 
@@ -163,9 +163,73 @@ class TestReporter(unittest.TestCase):
         self.assertIn("| `totally_diff` | TypeScript |", stuff_content)
         self.assertIn("**Features:** 1", stuff_content)
 
+    def test_matrix_report(self):
+        f_py = features_pb2.Feature(
+            original_name="f",
+            normalized_name="f",
+            member_of="c",
+            normalized_member_of="c",
+            normalized_namespace="n",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+        f_ts = features_pb2.Feature(
+            original_name="f",
+            normalized_name="f",
+            member_of="c",
+            normalized_member_of="c",
+            normalized_namespace="n",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+        # Go only matches partially (different name) or provides a new feature
+        f_go1 = features_pb2.Feature(
+            original_name="new_f",
+            normalized_name="new_f",
+            member_of="c",
+            normalized_member_of="c",
+            normalized_namespace="n",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
 
+        r_py = features_pb2.FeatureRegistry(language="Python", version="1")
+        r_py.features.append(f_py)
+        
+        r_ts = features_pb2.FeatureRegistry(language="TypeScript", version="2")
+        r_ts.features.append(f_ts)
+        
+        r_go = features_pb2.FeatureRegistry(language="Go", version="3")
+        r_go.features.append(f_go1)
 
-    def test_match_registries_raw(self):
+        result_matrix = reporter.match_registries(
+            [r_py, r_ts, r_go], 0.9, report_type="matrix"
+        )
+        
+        report_md = result_matrix.master_content
+
+        # 1. Check title & headers
+        self.assertIn("# Multi-SDK Feature Matrix Report", report_md)
+        self.assertIn("| **Anchor** | Python | 1 |", report_md)
+        self.assertIn("| **Comparison 1** | TypeScript | 2 |", report_md)
+        self.assertIn("| **Comparison 2** | Go | 3 |", report_md)
+
+        # 2. Check Jaccard Matrix
+        self.assertIn("## Global Parity Matrix", report_md)
+        self.assertIn("| Language | Python | TypeScript | Go |", report_md)
+        # Py vs TS should be 100% since they both only have 'f'
+        self.assertIn("| **Python** | - | 100.00% | 0.00% |", report_md)
+        # Py/TS vs Go should be 0% since Go has 'new_f' entirely disjoint
+        self.assertIn("| **Go** | 0.00% | 0.00% | - |", report_md)
+
+        # 3. Check Global Feature Matrix
+        self.assertIn("## Global Feature Support", report_md)
+        self.assertIn("### Module: `n`", report_md)
+        self.assertIn("| Feature | Type | Python | TypeScript | Go |", report_md)
+        
+        # 'f' should be yes for Py/Ts, no for Go
+        self.assertIn("| `c.f` | function | ✅ | ✅ | ❌ |", report_md)
+        
+        # 'new_f' should be no for Py/Ts, yes for Go
+        self.assertIn("| `c.new_f` | function | ❌ | ❌ | ✅ |", report_md)
+
         f1 = features_pb2.Feature(
             original_name="f_same",
             normalized_name="f_same",
@@ -179,7 +243,7 @@ class TestReporter(unittest.TestCase):
         target = features_pb2.FeatureRegistry(language="TS", version="2")
         target.features.append(f1)
 
-        result = reporter.match_registries(base, target, 0.9, report_type="raw")
+        result = reporter.match_registries([base, target], 0.9, report_type="raw")
         csv_content = result.master_content
 
         expected_header = (

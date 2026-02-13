@@ -95,6 +95,68 @@ class TestExtractor(unittest.TestCase):
         features = extract_features(mock_path, Path("/repo"), ".")
         self.assertEqual(features, [])
 
+    @patch("google.adk.scope.extractors.extractor_py.QueryCursor")
+    @patch("google.adk.scope.extractors.extractor_py.Query")
+    @patch("google.adk.scope.extractors.extractor_py.PARSER")
+    def test_private_classes_filtered(
+        self, mock_parser, mock_query_cls, mock_cursor_cls
+    ):
+        mock_path = MagicMock(spec=Path)
+        mock_path.read_bytes.return_value = b"class _PrivateClass: pass"
+        
+        mock_tree = MagicMock()
+        mock_parser.parse.return_value = mock_tree
+        mock_tree.root_node = MagicMock()
+        
+        mock_cursor_instance = mock_cursor_cls.return_value
+        
+        mock_node = MagicMock()
+        mock_node.type = "class_definition"
+        
+        # Simulate query returning the private class
+        mock_cursor_instance.captures.return_value = {"class": [mock_node]}
+        
+        with patch("google.adk.scope.extractors.extractor_py.NodeProcessor") as MockProcessor:
+            processor_instance = MockProcessor.return_value
+            # The processor returns None for private classes
+            processor_instance.process.return_value = None
+            
+            features = extract_features(mock_path, Path("/repo"), ".")
+            
+            self.assertEqual(features, [])
+            processor_instance.process.assert_called_once()
+
+    @patch("google.adk.scope.extractors.extractor_py.QueryCursor")
+    @patch("google.adk.scope.extractors.extractor_py.Query")
+    @patch("google.adk.scope.extractors.extractor_py.PARSER")
+    def test_private_class_methods_filtered(
+        self, mock_parser, mock_query_cls, mock_cursor_cls
+    ):
+        mock_path = MagicMock(spec=Path)
+        mock_path.read_bytes.return_value = b"class _PrivateClass:\n    def method(self): pass"
+        
+        mock_tree = MagicMock()
+        mock_parser.parse.return_value = mock_tree
+        mock_tree.root_node = MagicMock()
+        
+        mock_cursor_instance = mock_cursor_cls.return_value
+        
+        mock_node = MagicMock()
+        mock_node.type = "function_definition"
+        
+        # Simulate query returning the method
+        mock_cursor_instance.captures.return_value = {"func": [mock_node]}
+        
+        with patch("google.adk.scope.extractors.extractor_py.NodeProcessor") as MockProcessor:
+            processor_instance = MockProcessor.return_value
+            # The processor returns None for methods in private classes
+            processor_instance.process.return_value = None
+            
+            features = extract_features(mock_path, Path("/repo"), ".")
+            
+            self.assertEqual(features, [])
+            processor_instance.process.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

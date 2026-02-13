@@ -33,3 +33,8 @@ echo "Generating symmetric reports..."
 
 echo "Generating raw reports..."
 ./report.sh --base output/py.txtpb --target output/go.txtpb --output ./output --report-type raw
+
+# Matrix reports
+
+echo "Generating matrix reports..."
+./report.sh --registries output/py.txtpb output/ts.txtpb output/java.txtpb output/go.txtpb --output ./output --report-type matrix

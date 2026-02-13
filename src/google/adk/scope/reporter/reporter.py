@@ -73,19 +73,212 @@ def _read_feature_registry(file_path: str) -> features_pb2.FeatureRegistry:
 
 
 def match_registries(
-    base_registry: features_pb2.FeatureRegistry,
-    target_registry: features_pb2.FeatureRegistry,
+    registries: List[features_pb2.FeatureRegistry],
     alpha: float,
     report_type: str = "md",
 ) -> MatchResult:
-    """Matches features and generates a master report + module sub-reports."""
-    reporter = ReportGenerator(
-        base_registry,
-        target_registry,
-        alpha,
-    )
+    """Matches features and generates reports."""
+    if report_type == "matrix":
+        reporter = MatrixReportGenerator(registries, alpha)
+    else:
+        if len(registries) != 2:
+            raise ValueError(f"Report type '{report_type}' requires exactly 2 registries.")
+        reporter = ReportGenerator(
+            registries[0],
+            registries[1],
+            alpha,
+        )
 
     return reporter.generate_report(report_type)
+
+
+class MatrixReportGenerator:
+    def __init__(
+        self,
+        registries: List[features_pb2.FeatureRegistry],
+        alpha: float,
+    ):
+        self.registries = registries
+        self.alpha = alpha
+
+        self.langs = [_get_language_name(r.language) for r in self.registries]
+
+    def _compute_jaccard_matrix(self) -> List[str]:
+        n = len(self.registries)
+        matrix = [[0.0] * n for _ in range(n)]
+
+        for i in range(n):
+            for j in range(n):
+                if i == j:
+                    matrix[i][j] = 1.0
+                    continue
+                if i > j:
+                    matrix[i][j] = matrix[j][i]
+                    continue
+                
+                # compute intersection
+                r_base = self.registries[i]
+                r_target = self.registries[j]
+                
+                features_base = _group_features_by_module(r_base)
+                features_target = _group_features_by_module(r_target)
+                matcher.fuzzy_match_namespaces(features_base, features_target)
+                
+                all_modules = set(features_base.keys()) | set(features_target.keys())
+                total_solid = 0
+                for mod in all_modules:
+                    b_list = list(features_base.get(mod, []))
+                    t_list = list(features_target.get(mod, []))
+                    solid_matches = matcher.match_features(b_list, t_list, self.alpha)
+                    total_solid += len(solid_matches)
+                
+                total_base = len(r_base.features)
+                total_target = len(r_target.features)
+                union_size = total_base + total_target - total_solid
+                
+                score = total_solid / union_size if union_size > 0 else 1.0
+                matrix[i][j] = score
+
+        lines = [
+            "## Global Parity Matrix",
+            "",
+            "| Language | " + " | ".join(self.langs) + " |",
+            "| :--- |" + " :--- |" * n
+        ]
+
+        for i in range(n):
+            row = [f"**{self.langs[i]}**"]
+            for j in range(n):
+                if i == j:
+                    row.append("-")
+                else:
+                    row.append(f"{matrix[i][j]:.2%}")
+            lines.append("| " + " | ".join(row) + " |")
+
+        lines.append("")
+        return lines
+
+    def _build_global_feature_matrix(self) -> List[str]:
+        # CrossLanguageFeature: dict mapping lang_idx -> Feature
+        global_features: List[Dict[int, features_pb2.Feature]] = []
+
+        # 1. Initialize with Anchor (index 0)
+        anchor_registry = self.registries[0]
+        for f in anchor_registry.features:
+            global_features.append({0: f})
+
+        # 2. Iteratively align remaining registries
+        for i in range(1, len(self.registries)):
+            target_registry = self.registries[i]
+            
+            # Group current global features by module and target features by module
+            global_by_mod = defaultdict(list)
+            for row in global_features:
+                # Use the feature representation from the earliest language that has it
+                rep_idx = min(row.keys())
+                rep_f = row[rep_idx]
+                mod = rep_f.normalized_namespace or rep_f.namespace or "Unknown Module"
+                global_by_mod[mod].append((row, rep_f))
+
+            target_by_mod = _group_features_by_module(target_registry)
+            
+            # We must remap namespaces just for matching purposes in this step
+            # We'll build temporary Dict[str, List[Feature]] for namespaces
+            g_ns_dict = {mod: [f for _, f in lst] for mod, lst in global_by_mod.items()}
+            matcher.fuzzy_match_namespaces(g_ns_dict, target_by_mod)
+
+            all_modules = set(g_ns_dict.keys()) | set(target_by_mod.keys())
+
+            for mod in all_modules:
+                base_tuples = global_by_mod.get(mod, [])  # list of (row_dict, Feature)
+                b_list = [f for _, f in base_tuples]
+                t_list = target_by_mod.get(mod, [])
+
+                # Match
+                solid_matches = matcher.match_features(b_list, t_list, self.alpha)
+
+                # Record matches
+                for b_f, t_f, _ in solid_matches:
+                    # Find the original row dict that owns b_f
+                    for row_dict, feat in base_tuples:
+                        if feat is b_f:
+                            row_dict[i] = t_f
+                            break
+
+                # Record unmatched targets as new rows
+                # t_list was mutated by match_features (items removed)
+                for t_f in t_list:
+                    global_features.append({i: t_f})
+
+        # 3. Render table grouped by Module
+        # Regroup final global features by module for rendering
+        final_by_mod = defaultdict(list)
+        for row in global_features:
+            rep_idx = min(row.keys())
+            rep_f = row[rep_idx]
+            mod = rep_f.normalized_namespace or rep_f.namespace or "Unknown Module"
+            final_by_mod[mod].append(row)
+
+        lines = ["## Global Feature Support", ""]
+        
+        for mod in sorted(final_by_mod.keys()):
+            lines.append(f"### Module: `{mod}`")
+            header = "| Feature | Type | " + " | ".join(self.langs) + " |"
+            divider = "| :--- | :--- |" + " :---: |" * len(self.langs)
+            lines.extend([header, divider])
+
+            # sort features in module
+            def get_sort_key(row):
+                rep_idx = min(row.keys())
+                rep_f = row[rep_idx]
+                return (matcher._get_type_priority(rep_f), rep_f.normalized_name or "")
+                
+            mod_rows = final_by_mod[mod]
+            mod_rows.sort(key=get_sort_key)
+
+            for row in mod_rows:
+                rep_idx = min(row.keys())
+                rep_f = row[rep_idx]
+                f_name = matcher._format_feature(rep_f)
+                f_type = matcher.get_type_display_name(rep_f)
+
+                row_cells = [f"`{f_name}`", f_type]
+                for i in range(len(self.registries)):
+                    if i in row:
+                        row_cells.append("✅")
+                    else:
+                        row_cells.append("❌")
+
+                lines.append("| " + " | ".join(row_cells) + " |")
+
+            lines.append("")
+
+        return lines
+
+    def generate_report(self, report_type: str = "matrix") -> MatchResult:
+        master_lines = [
+            "# Multi-SDK Feature Matrix Report",
+            f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "",
+            "## Registries",
+            "| Role | Language | Version |",
+            "| :--- | :--- | :--- |"
+        ]
+        
+        for idx, r in enumerate(self.registries):
+            role_marker = "Anchor" if idx == 0 else f"Comparison {idx}"
+            master_lines.append(
+                f"| **{role_marker}** | {self.langs[idx]} | {r.version} |"
+            )
+        
+        master_lines.append("")
+        master_lines.extend(self._compute_jaccard_matrix())
+        master_lines.extend(self._build_global_feature_matrix())
+
+        return MatchResult(
+            master_content="\n".join(master_lines).strip(),
+            module_files={},
+        )
 
 
 class ReportGenerator:
@@ -312,13 +505,19 @@ def main():
     )
     parser.add_argument(
         "--base",
-        required=True,
+        required=False,
         help="Path to the base FeatureRegistry .txtpb file.",
     )
     parser.add_argument(
         "--target",
-        required=True,
+        required=False,
         help="Path to the target FeatureRegistry .txtpb file.",
+    )
+    parser.add_argument(
+        "--registries",
+        nargs="+",
+        required=False,
+        help="Paths to multiple FeatureRegistry .txtpb files.",
     )
     parser.add_argument(
         "--output",
@@ -333,24 +532,34 @@ def main():
     )
     parser.add_argument(
         "--report-type",
-        choices=["md", "raw"],
+        choices=["md", "raw", "matrix"],
         default="md",
-        help="Type of gap report to generate (md or raw).",
+        help="Type of gap report to generate (md, raw, matrix).",
     )
     adk_args.add_verbose_argument(parser)
     args = parser.parse_args()
     adk_args.configure_logging(args)
 
     try:
-        base_registry = _read_feature_registry(args.base)
-        target_registry = _read_feature_registry(args.target)
+        registry_paths = []
+        if args.registries:
+            registry_paths.extend(args.registries)
+        elif args.base and args.target:
+            registry_paths.extend([args.base, args.target])
+        else:
+            logging.error("Must provide either --registries or both --base and --target")
+            sys.exit(1)
+            
+        if len(registry_paths) < 2:
+            logging.error("Must provide at least 2 registries to compare.")
+            sys.exit(1)
+
+        registries = [_read_feature_registry(p) for p in registry_paths]
     except Exception as e:
         logging.error(f"Error reading feature registries: {e}")
         sys.exit(1)
 
-    result = match_registries(
-        base_registry, target_registry, args.alpha, args.report_type
-    )
+    result = match_registries(registries, args.alpha, args.report_type)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)

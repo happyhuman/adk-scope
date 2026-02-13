@@ -29,7 +29,8 @@ class NodeProcessor:
         normalized_namespace: str,
     ) -> Optional[feature_pb2.Feature]:
         """Convert a Tree-sitter node into a Feature."""
-        if node.type not in ("function_declaration", "method_declaration"):
+        valid_nodes = ("function_declaration", "method_declaration", "method_elem")
+        if node.type not in valid_nodes:
             return None
 
         original_name = self._extract_name(node)
@@ -56,10 +57,18 @@ class NodeProcessor:
             "New"
         ):
             feature_type = feature_pb2.Feature.Type.CONSTRUCTOR
+        elif node.type == "method_elem":
+            feature_type = feature_pb2.Feature.Type.INSTANCE_METHOD
+            member_of = self._extract_interface_name(node)
+            normalized_member_of = (
+                normalize_name(member_of) if member_of else ""
+            )
 
         parameters = self._extract_params(node)
 
         original_returns, normalized_returns = self._extract_return_types(node)
+        
+        docstring = self._extract_docstring(node)
 
         feature = feature_pb2.Feature(
             original_name=original_name,
@@ -75,7 +84,31 @@ class NodeProcessor:
             normalized_return_types=normalized_returns,
         )
 
+        if docstring:
+            feature.description = docstring
+
         return feature
+
+    def _extract_docstring(self, node: Node) -> str:
+        """Extract comments immediately preceding the declaration."""
+        comments = []
+        prev = node.prev_sibling
+        while prev and prev.type == "comment":
+            clean_comment = prev.text.decode("utf-8").lstrip("//").strip()
+            comments.insert(0, clean_comment)
+            prev = prev.prev_sibling
+        return "\n".join(comments)
+
+    def _extract_interface_name(self, node: Node) -> str:
+        """Walk up the AST from a method_spec to find the interface type name."""
+        parent = node.parent
+        while parent:
+            if parent.type == "type_spec":
+                name_node = parent.child_by_field_name("name")
+                if name_node:
+                    return name_node.text.decode("utf-8")
+            parent = parent.parent
+        return ""
 
     def _extract_receiver_type(self, node: Node) -> str:
         """Extract the receiver type from a method_declaration."""

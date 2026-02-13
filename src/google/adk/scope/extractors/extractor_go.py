@@ -73,43 +73,58 @@ def extract_features(
     query_text = """
         (function_declaration) @func
         (method_declaration) @method
+        (type_declaration
+          (type_spec
+            name: (type_identifier) @interface_name
+            type: (interface_type
+              (method_elem) @interface_method
+            )
+          )
+        )
     """
     query = Query(GO_LANGUAGE, query_text)
     cursor = QueryCursor(query)
     captures = cursor.captures(root_node)
 
     all_nodes = []
-    for node_list in captures.values():
-        all_nodes.extend(node_list)
+    # We only want to process the actual function/method nodes, not the interface names
+    # which are captured just for context by the processor (via tree traversal).
+    for capture_name, node_list in captures.items():
+        if capture_name in ("func", "method", "interface_method"):
+            all_nodes.extend(node_list)
 
     # Log results for debugging
     logger.debug("Found %d potential nodes in %s", len(all_nodes), file_path)
 
     for node in all_nodes:
-        # Filter out simple functions (e.g., getters, setters) by checking
-        # the body. Note: In Go AST, the function 'body' is a 'block' which
-        # contains a 'statement_list'. We need to check the size of the
-        # 'statement_list' to know the actual number of statements.
-        body_node = node.child_by_field_name("body")
-        if body_node:
-            stmt_list = next(
-                (
-                    child
-                    for child in body_node.children
-                    if child.type == "statement_list"
-                ),
-                None,
-            )
-            # If there is no statement list, or it has 1 or fewer statements,
-            # consider it simple.
-            if stmt_list is None or stmt_list.named_child_count <= 1:
-                function_name_node = node.child_by_field_name("name")
-                if function_name_node:
-                    logger.debug(
-                        "Skipping simple function: %s",
-                        function_name_node.text.decode("utf8"),
-                    )
-                continue
+        # Prevent filtering out abstract interface methods which have no body
+        if node.type == "method_elem":
+            pass
+        else:
+            # Filter out simple functions (e.g., getters, setters) by checking
+            # the body. Note: In Go AST, the function 'body' is a 'block' which
+            # contains a 'statement_list'. We need to check the size of the
+            # 'statement_list' to know the actual number of statements.
+            body_node = node.child_by_field_name("body")
+            if body_node:
+                stmt_list = next(
+                    (
+                        child
+                        for child in body_node.children
+                        if child.type == "statement_list"
+                    ),
+                    None,
+                )
+                # If there is no statement list, or it has 1 or fewer statements,
+                # consider it simple.
+                if stmt_list is None or stmt_list.named_child_count <= 1:
+                    function_name_node = node.child_by_field_name("name")
+                    if function_name_node:
+                        logger.debug(
+                            "Skipping simple function: %s",
+                            function_name_node.text.decode("utf8"),
+                        )
+                    continue
 
         # Prepare namespace and normalized namespace
         try:

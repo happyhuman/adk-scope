@@ -54,6 +54,11 @@ class NodeProcessor:
 
         # 2. Context
         member_of, normalized_member_of = self._extract_member_of(node)
+        
+        # If the member belongs to a private class, skip it
+        if member_of and member_of.startswith("_"):
+            logger.debug("Skipping method %s of private class %s", original_name, member_of)
+            return None
 
         feature_type = self._determine_type(
             node, original_name, bool(member_of)
@@ -142,6 +147,10 @@ class NodeProcessor:
     def _process_dataclass(
         self, node: Node, file_path: Path, repo_root: Path
     ) -> Optional[feature_pb2.Feature]:
+        original_name = self._extract_name(node)
+        if not original_name or original_name.startswith("_"):
+            return None
+
         body_node = node.child_by_field_name("body")
         if not body_node:
             return None
@@ -201,7 +210,6 @@ class NodeProcessor:
         if has_init or not params:
             return None
 
-        original_name = self._extract_name(node)
         normalized_name = normalize_name(original_name)
         namespace, normalized_namespace = self._extract_namespace(
             file_path, repo_root
