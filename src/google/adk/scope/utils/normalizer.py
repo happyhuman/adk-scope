@@ -176,12 +176,16 @@ class TypeNormalizer:
             return ["MAP"]
 
         # Slices and Arrays
-        if t.startswith("[]") or (t.startswith("[") and "]" in t and t.find("]") < t.find(" ") if " " in t else t.startswith("[")):
-             # Even bounded arrays like [5]string should map to LIST conceptually for ADK Scope
-             if t.startswith("[") and "]" in t:
-                 bracket_end = t.find("]")
-                 # Ensure it's not a map definition (handled above)
-                 return ["LIST"]
+        if t.startswith("[]") or (
+            t.startswith("[") and "]" in t and t.find("]") < t.find(" ")
+            if " " in t
+            else t.startswith("[")
+        ):
+            # Even bounded arrays like [5]string should map to LIST conceptually
+            # for ADK Scope
+            if t.startswith("[") and "]" in t:
+                # Ensure it's not a map definition (handled above)
+                return ["LIST"]
 
         # Pointers (strip and re-evaluate)
         if t.startswith("*"):
@@ -192,9 +196,21 @@ class TypeNormalizer:
         if t_lower in ("string", "rune", "byte"):
             return ["STRING"]
         if t_lower in (
-            "int", "int8", "int16", "int32", "int64",
-            "uint", "uint8", "uint16", "uint32", "uint64",
-            "uintptr", "float32", "float64", "complex64", "complex128"
+            "int",
+            "int8",
+            "int16",
+            "int32",
+            "int64",
+            "uint",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint64",
+            "uintptr",
+            "float32",
+            "float64",
+            "complex64",
+            "complex128",
         ):
             return ["NUMBER"]
         if t_lower in ("bool", "boolean"):
@@ -202,7 +218,9 @@ class TypeNormalizer:
         if t_lower in ("any", "interface{}"):
             return ["OBJECT"]
         if t_lower == "error":
-            return ["OBJECT"]  # Error handling relies on this fallback unless stripped
+            return [
+                "OBJECT"
+            ]  # Error handling relies on this fallback unless stripped
 
         return ["OBJECT"]
 

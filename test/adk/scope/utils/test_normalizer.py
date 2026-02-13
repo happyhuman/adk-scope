@@ -163,10 +163,14 @@ class TestTypeNormalizer(unittest.TestCase):
         self.assertEqual(self.normalizer.normalize("bool", "go"), ["BOOLEAN"])
         self.assertEqual(self.normalizer.normalize("[]string", "go"), ["LIST"])
         self.assertEqual(self.normalizer.normalize("[5]int", "go"), ["LIST"])
-        self.assertEqual(self.normalizer.normalize("map[string]interface{}", "go"), ["MAP"])
+        self.assertEqual(
+            self.normalizer.normalize("map[string]interface{}", "go"), ["MAP"]
+        )
         self.assertEqual(self.normalizer.normalize("*string", "go"), ["STRING"])
         self.assertEqual(self.normalizer.normalize("*[]Event", "go"), ["LIST"])
-        self.assertEqual(self.normalizer.normalize("interface{}", "go"), ["OBJECT"])
+        self.assertEqual(
+            self.normalizer.normalize("interface{}", "go"), ["OBJECT"]
+        )
         self.assertEqual(self.normalizer.normalize("any", "go"), ["OBJECT"])
         self.assertEqual(self.normalizer.normalize("error", "go"), ["OBJECT"])
 

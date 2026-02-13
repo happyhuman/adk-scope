@@ -9,12 +9,12 @@ mock_ts_go = MagicMock()
 sys.modules["tree_sitter"] = mock_ts
 sys.modules["tree_sitter_go"] = mock_ts_go
 
-from google.adk.scope.extractors.extractor_go import (
+from google.adk.scope.extractors.extractor_go import (  # noqa: E402
     extract_features,
     find_files,
     get_version,
 )
-from google.adk.scope.features_pb2 import Feature
+from google.adk.scope.features_pb2 import Feature  # noqa: E402
 
 
 class TestExtractor(unittest.TestCase):
@@ -49,7 +49,7 @@ class TestExtractor(unittest.TestCase):
         mock_method_stmt_list.named_child_count = 2
         mock_method_body.children = [mock_method_stmt_list]
         mock_method_node.child_by_field_name.return_value = mock_method_body
-        
+
         mock_cursor_instance.captures.return_value = {
             "func": [mock_func_node],
             "method": [mock_method_node],

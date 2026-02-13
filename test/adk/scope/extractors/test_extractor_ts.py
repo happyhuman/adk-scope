@@ -62,6 +62,7 @@ class TestExtractor(unittest.TestCase):
 
         # Mock Query and QueryCursor
         with (
+            patch("google.adk.scope.extractors.extractor_ts._build_global_type_map"),
             patch("google.adk.scope.extractors.extractor_ts.Query"),
             patch(
                 "google.adk.scope.extractors.extractor_ts.QueryCursor"

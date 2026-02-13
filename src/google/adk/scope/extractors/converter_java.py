@@ -85,7 +85,9 @@ class NodeProcessor:
 
         # Drop methods that belong to Builder classes
         if member_of and member_of.endswith("Builder"):
-            logger.debug("Skipping builder member: %s.%s", member_of, original_name)
+            logger.debug(
+                "Skipping builder member: %s.%s", member_of, original_name
+            )
             return None
 
         # If it's a constructor, the name is typically the class name

@@ -408,7 +408,7 @@ class NodeProcessor:
 
         # Parse type map if available
         type_map = self._extract_type_map(type_node)
-        
+
         if not type_map and type_node:
             raw_type = type_node.text.decode("utf-8")
             if raw_type.startswith(":"):
@@ -442,8 +442,14 @@ class NodeProcessor:
                 if raw_type_str.startswith(":"):
                     raw_type_str = raw_type_str[1:].strip()
 
-            is_literal_type = raw_type_str and raw_type_str.strip().startswith("{")
-            is_global_type = self.global_type_map and raw_type_str and raw_type_str.strip() in self.global_type_map
+            is_literal_type = raw_type_str and raw_type_str.strip().startswith(
+                "{"
+            )
+            is_global_type = (
+                self.global_type_map
+                and raw_type_str
+                and raw_type_str.strip() in self.global_type_map
+            )
 
             if not (is_literal_type or is_global_type) and raw_type_str:
                 # Use named type as parameter name (previous behavior for
@@ -544,7 +550,11 @@ class NodeProcessor:
         # Check if type is an object literal AND we have type_map populated
         # This means it's `param: { a: string }` style
         is_literal_type = raw_type and raw_type.strip().startswith("{")
-        is_global_type = self.global_type_map and raw_type and raw_type.strip() in self.global_type_map
+        is_global_type = (
+            self.global_type_map
+            and raw_type
+            and raw_type.strip() in self.global_type_map
+        )
 
         if (is_literal_type or is_global_type) and type_map:
             # We want to explode this into multiple parameters

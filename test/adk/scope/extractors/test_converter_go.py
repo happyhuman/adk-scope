@@ -2,8 +2,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
-from google.adk.scope.extractors.converter_go import NodeProcessor
 import google.adk.scope.features_pb2 as feature_pb2
+from google.adk.scope.extractors.converter_go import NodeProcessor
 from google.adk.scope.features_pb2 import Feature
 
 
@@ -44,7 +44,9 @@ class TestNodeProcessor(unittest.TestCase):
             text="func MyFunc() {}",
         )
 
-        result = self.processor.process(node, self.file_path, self.repo_root, "google.adk", "google_adk")
+        result = self.processor.process(
+            node, self.file_path, self.repo_root, "google.adk", "google_adk"
+        )
 
         self.assertIsNotNone(result)
         self.assertEqual(result.original_name, "MyFunc")
@@ -56,13 +58,22 @@ class TestNodeProcessor(unittest.TestCase):
         name_node = self.create_mock_node("identifier", text="Validate")
         name_node.field_name = "name"
 
-        type_ident = self.create_mock_node("type_identifier", text="SaveRequest")
-        # According to the converter method, we check for child.type == "parameter_declaration"
-        # and its child_by_field_name("type")
-        pointer = self.create_mock_node("pointer_type", children=[type_ident], text="*SaveRequest")
+        type_ident = self.create_mock_node(
+            "type_identifier", text="SaveRequest"
+        )
+        # According to the converter method, we check for
+        # child.type == "parameter_declaration" and its
+        # child_by_field_name("type")
+        pointer = self.create_mock_node(
+            "pointer_type", children=[type_ident], text="*SaveRequest"
+        )
         pointer.field_name = "type"
-        param_decl = self.create_mock_node("parameter_declaration", children=[pointer])
-        receiver_node = self.create_mock_node("parameter_list", children=[param_decl])
+        param_decl = self.create_mock_node(
+            "parameter_declaration", children=[pointer]
+        )
+        receiver_node = self.create_mock_node(
+            "parameter_list", children=[param_decl]
+        )
         receiver_node.field_name = "receiver"
 
         node = self.create_mock_node(
@@ -70,7 +81,9 @@ class TestNodeProcessor(unittest.TestCase):
             children=[name_node, receiver_node],
         )
 
-        result = self.processor.process(node, self.file_path, self.repo_root, "google.adk", "google_adk")
+        result = self.processor.process(
+            node, self.file_path, self.repo_root, "google.adk", "google_adk"
+        )
         self.assertIsNotNone(result)
         self.assertEqual(result.type, Feature.Type.INSTANCE_METHOD)
         self.assertEqual(result.member_of, "SaveRequest")
@@ -83,7 +96,9 @@ class TestNodeProcessor(unittest.TestCase):
             "function_declaration",
             children=[name_node],
         )
-        result = self.processor.process(node, self.file_path, self.repo_root, "google.adk", "google_adk")
+        result = self.processor.process(
+            node, self.file_path, self.repo_root, "google.adk", "google_adk"
+        )
         self.assertIsNotNone(result)
         self.assertEqual(result.type, Feature.Type.CONSTRUCTOR)
 
@@ -118,22 +133,32 @@ class TestNodeProcessor(unittest.TestCase):
             children=[name_node, params_node],
         )
 
-        result = self.processor.process(node, self.file_path, self.repo_root, "google.adk", "google_adk")
+        result = self.processor.process(
+            node, self.file_path, self.repo_root, "google.adk", "google_adk"
+        )
 
         self.assertEqual(len(result.parameters), 2)
         self.assertEqual(result.parameters[0].original_name, "a")
         self.assertEqual(result.parameters[0].original_types, ["int"])
-        self.assertEqual(result.parameters[0].normalized_types, [feature_pb2.ParamType.NUMBER])
+        self.assertEqual(
+            result.parameters[0].normalized_types,
+            [feature_pb2.ParamType.NUMBER],
+        )
         self.assertEqual(result.parameters[1].original_name, "b")
         self.assertEqual(result.parameters[1].original_types, ["string"])
-        self.assertEqual(result.parameters[1].normalized_types, [feature_pb2.ParamType.STRING])
+        self.assertEqual(
+            result.parameters[1].normalized_types,
+            [feature_pb2.ParamType.STRING],
+        )
 
     def test_return_types(self):
         # func MyFunc() string {}
         name_node = self.create_mock_node("identifier", text="MyFunc")
         name_node.field_name = "name"
 
-        return_type_node = self.create_mock_node("type_identifier", text="string")
+        return_type_node = self.create_mock_node(
+            "type_identifier", text="string"
+        )
         return_type_node.field_name = "result"
 
         node = self.create_mock_node(
@@ -141,7 +166,9 @@ class TestNodeProcessor(unittest.TestCase):
             children=[name_node, return_type_node],
         )
 
-        result = self.processor.process(node, self.file_path, self.repo_root, "google.adk", "google_adk")
+        result = self.processor.process(
+            node, self.file_path, self.repo_root, "google.adk", "google_adk"
+        )
 
         self.assertEqual(result.original_return_types, ["string"])
         self.assertEqual(result.normalized_return_types, ["STRING"])

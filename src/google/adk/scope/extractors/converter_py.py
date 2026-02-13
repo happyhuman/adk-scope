@@ -61,15 +61,25 @@ class NodeProcessor:
 
         if not member_of:
             # Skip top-level functions contained in private python modules
-            if file_path.name.startswith("_") and file_path.name != "__init__.py":
-                logger.debug("Skipping top-level function in private module: %s", original_name)
+            if (
+                file_path.name.startswith("_")
+                and file_path.name != "__init__.py"
+            ):
+                logger.debug(
+                    "Skipping top-level function in private module: %s",
+                    original_name,
+                )
                 return None
-            
-            # Skip top-level functions within cli sub-modules which are generally executable scopes
+
+            # Skip top-level functions within cli sub-modules which are
+            # generally executable scopes
             if "cli" in file_path.parts:
-                logger.debug("Skipping top-level CLI internal function: %s", original_name)
+                logger.debug(
+                    "Skipping top-level CLI internal function: %s",
+                    original_name,
+                )
                 return None
-            
+
             member_of = "null"
 
         namespace, normalized_namespace = self._extract_namespace(
@@ -161,24 +171,30 @@ class NodeProcessor:
                         param = feature_pb2.Param(
                             original_name=param_name,
                             normalized_name=normalize_name(param_name),
-                            is_optional=bool(right_node)
+                            is_optional=bool(right_node),
                         )
 
                         normalized_strings = []
                         if type_node:
                             raw_type = type_node.text.decode("utf-8")
                             param.original_types.append(raw_type)
-                            normalized_strings = self.normalizer.normalize(raw_type, "python")
-                        
+                            normalized_strings = self.normalizer.normalize(
+                                raw_type, "python"
+                            )
+
                         if not normalized_strings:
                             normalized_strings = ["OBJECT"]
 
                         for s in normalized_strings:
                             try:
-                                enum_val = getattr(feature_pb2.ParamType, s.upper())
+                                enum_val = getattr(
+                                    feature_pb2.ParamType, s.upper()
+                                )
                                 param.normalized_types.append(enum_val)
                             except AttributeError:
-                                param.normalized_types.append(feature_pb2.ParamType.OBJECT)
+                                param.normalized_types.append(
+                                    feature_pb2.ParamType.OBJECT
+                                )
 
                         params.append(param)
 
@@ -427,7 +443,11 @@ class NodeProcessor:
         types = []
         optional = False
 
-        if node.type in ("identifier", "list_splat_pattern", "dictionary_splat_pattern"):
+        if node.type in (
+            "identifier",
+            "list_splat_pattern",
+            "dictionary_splat_pattern",
+        ):
             name = node.text.decode("utf-8")
 
         elif node.type == "typed_parameter":

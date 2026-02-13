@@ -102,7 +102,10 @@ def extract_features(
     func_nodes = captures.get("func", [])
     class_nodes = captures.get("class", [])
     logger.debug(
-        "Found %d potential function nodes and %d class nodes in %s", len(func_nodes), len(class_nodes), file_path
+        "Found %d potential function nodes and %d class nodes in %s",
+        len(func_nodes),
+        len(class_nodes),
+        file_path,
     )
 
     for node in func_nodes + class_nodes:

@@ -49,8 +49,12 @@ class NodeProcessor:
             member_of = self._extract_receiver_type(node)
             if member_of and member_of[0].islower():
                 member_of = member_of[0].upper() + member_of[1:]
-            normalized_member_of = normalize_name(member_of) if member_of else ""
-        elif node.type == "function_declaration" and original_name.startswith("New"):
+            normalized_member_of = (
+                normalize_name(member_of) if member_of else ""
+            )
+        elif node.type == "function_declaration" and original_name.startswith(
+            "New"
+        ):
             feature_type = feature_pb2.Feature.Type.CONSTRUCTOR
 
         parameters = self._extract_params(node)
@@ -86,16 +90,26 @@ class NodeProcessor:
                     return type_node.text.decode("utf-8").lstrip("*")
         return ""
 
-    def _extract_return_types(self, node: Node) -> tuple[list[str], list[feature_pb2.ParamType]]:
-        """Extract return types from a function_declaration node, ignoring 'error'."""
+    def _extract_return_types(
+        self, node: Node
+    ) -> tuple[list[str], list[feature_pb2.ParamType]]:
+        """Extract return types from a function_declaration node, ignoring
+        'error'.
+        """
         return_node = node.child_by_field_name("result")
         if not return_node:
             return [], []
 
         raw_types = []
-        
+
         # If the return is a single type identifier or pointer
-        if return_node.type in ("type_identifier", "pointer_type", "qualified_type", "slice_type", "map_type"):
+        if return_node.type in (
+            "type_identifier",
+            "pointer_type",
+            "qualified_type",
+            "slice_type",
+            "map_type",
+        ):
             raw_types.append(return_node.text.decode("utf-8"))
         # If it returns multiple types, they are wrapped in a parameter_list
         elif return_node.type == "parameter_list":
@@ -104,17 +118,17 @@ class NodeProcessor:
                     type_node = child.child_by_field_name("type")
                     if type_node:
                         raw_types.append(type_node.text.decode("utf-8"))
-        
+
         original_returns = []
         normalized_returns = []
-        
+
         for raw in raw_types:
             if raw == "error":
                 continue
             original_returns.append(raw)
             norm_types = self.normalizer.normalize(raw, "go")
             normalized_returns.extend(norm_types)
-                
+
         return original_returns, normalized_returns
 
     def _extract_params(self, node: Node) -> list[feature_pb2.Param]:
@@ -133,7 +147,8 @@ class NodeProcessor:
                     param_name = name_node.text.decode("utf-8")
                     param_type = type_node.text.decode("utf-8")
 
-                    # Skip Go context.Context parameters to align with other languages
+                    # Skip Go context.Context parameters to align with other
+                    # languages
                     if param_type == "context.Context":
                         continue
 
