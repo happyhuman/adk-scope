@@ -53,6 +53,8 @@ class NodeProcessor:
             "toString",
             "canEqual",
             "clone",
+            "builder",
+            "toBuilder",
         ):
             logger.debug("Skipping boilerplate method: %s", original_name)
             return None
@@ -80,6 +82,11 @@ class NodeProcessor:
                 return None
 
         member_of, normalized_member_of = self._extract_class(node)
+
+        # Drop methods that belong to Builder classes
+        if member_of and member_of.endswith("Builder"):
+            logger.debug("Skipping builder member: %s.%s", member_of, original_name)
+            return None
 
         # If it's a constructor, the name is typically the class name
         if node.type == "constructor_declaration" and not original_name:

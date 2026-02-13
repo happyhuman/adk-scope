@@ -18,8 +18,17 @@ logger = logging.getLogger(__name__)
 class NodeProcessor:
     """Process Tree-sitter nodes into Feature objects for TypeScript."""
 
-    def __init__(self):
+    def __init__(self, global_type_map: dict = None):
         self.normalizer = TypeNormalizer()
+        self.global_type_map = global_type_map or {}
+
+    def _is_exported(self, node: Node) -> bool:
+        parent = node.parent
+        while parent:
+            if parent.type == "export_statement":
+                return True
+            parent = parent.parent
+        return False
 
     def process(
         self, node: Node, file_path: Path, repo_root: Path
@@ -64,6 +73,11 @@ class NodeProcessor:
 
         # 2. Context
         member_of, normalized_member_of = self._extract_member_of(node)
+
+        if node.type == "function_declaration" and not member_of:
+            if not self._is_exported(node):
+                logger.debug("Skipping unexported function: %s", original_name)
+                return None
 
         feature_type = self._determine_type(
             node, original_name, bool(member_of)
@@ -394,6 +408,13 @@ class NodeProcessor:
 
         # Parse type map if available
         type_map = self._extract_type_map(type_node)
+        
+        if not type_map and type_node:
+            raw_type = type_node.text.decode("utf-8")
+            if raw_type.startswith(":"):
+                raw_type = raw_type[1:].strip()
+            if self.global_type_map and raw_type in self.global_type_map:
+                type_map = self.global_type_map[raw_type]
 
         if pattern_node and pattern_node.type == "object_pattern":
             # Handle destructuring: { a, b }: { a: string, b: number }
@@ -421,13 +442,12 @@ class NodeProcessor:
                 if raw_type_str.startswith(":"):
                     raw_type_str = raw_type_str[1:].strip()
 
-            is_literal_type = raw_type_str and raw_type_str.strip().startswith(
-                "{"
-            )
+            is_literal_type = raw_type_str and raw_type_str.strip().startswith("{")
+            is_global_type = self.global_type_map and raw_type_str and raw_type_str.strip() in self.global_type_map
 
-            if not is_literal_type and raw_type_str:
+            if not (is_literal_type or is_global_type) and raw_type_str:
                 # Use named type as parameter name (previous behavior for
-                # non-literal)
+                # non-literal, unless mapped)
                 name = self._derive_name_from_type(raw_type_str)
                 p = self._create_single_param(
                     name, [raw_type_str], node.type == "optional_parameter"
@@ -524,7 +544,9 @@ class NodeProcessor:
         # Check if type is an object literal AND we have type_map populated
         # This means it's `param: { a: string }` style
         is_literal_type = raw_type and raw_type.strip().startswith("{")
-        if is_literal_type and type_map:
+        is_global_type = self.global_type_map and raw_type and raw_type.strip() in self.global_type_map
+
+        if (is_literal_type or is_global_type) and type_map:
             # We want to explode this into multiple parameters
             # defined by type_map.
             # The original param name is `name` (e.g. "params")

@@ -20,6 +20,64 @@ PARSER.language = TS_LANGUAGE
 
 logger = logging.getLogger(__name__)
 
+GLOBAL_TYPE_MAP = {}
+_GLOBAL_TYPE_MAP_INITIALIZED = False
+
+def _build_global_type_map(repo_root: pathlib.Path):
+    global _GLOBAL_TYPE_MAP_INITIALIZED, GLOBAL_TYPE_MAP
+    if _GLOBAL_TYPE_MAP_INITIALIZED:
+        return
+    
+    _GLOBAL_TYPE_MAP_INITIALIZED = True
+    
+    query = Query(
+        TS_LANGUAGE,
+        """
+        (interface_declaration) @interface
+        (type_alias_declaration) @alias
+        """
+    )
+    cursor = QueryCursor(query)
+    
+    for file_path in find_files(repo_root):
+        try:
+            content = file_path.read_bytes()
+            tree = PARSER.parse(content)
+            captures = cursor.captures(tree.root_node)
+            nodes = captures.get("interface", []) + captures.get("alias", [])
+            
+            for node in nodes:
+                name_node = node.child_by_field_name("name")
+                if node.type == "interface_declaration":
+                    body_node = node.child_by_field_name("body")
+                else:
+                    body_node = node.child_by_field_name("value")
+                
+                if name_node and body_node:
+                    name = name_node.text.decode("utf-8")
+                    type_map = {}
+                    for child in body_node.children:
+                        if child.type == "property_signature":
+                            prop_name_node = child.child_by_field_name("name")
+                            prop_type_node = child.child_by_field_name("type")
+                            if prop_name_node:
+                                p_name = prop_name_node.text.decode("utf-8")
+                                p_type = ""
+                                if prop_type_node:
+                                    p_type = prop_type_node.text.decode("utf-8")
+                                    if p_type.startswith(":"):
+                                        p_type = p_type[1:].strip()
+                                p_optional = False
+                                for sub in child.children:
+                                    if sub.type == "?" or sub.text.decode("utf-8") == "?":
+                                        p_optional = True
+                                        break
+                                type_map[p_name] = (p_type, p_optional)
+                    GLOBAL_TYPE_MAP[name] = type_map
+        except Exception as e:
+            logger.debug("Failed to read %s for global type map: %s", file_path, e)
+
+
 
 def find_files(
     root: pathlib.Path, recursive: bool = True
@@ -63,7 +121,9 @@ def extract_features(
     tree = PARSER.parse(content)
     root_node = tree.root_node
 
-    processor = NodeProcessor()
+    _build_global_type_map(repo_root)
+
+    processor = NodeProcessor(GLOBAL_TYPE_MAP)
     features = []
 
     # Query for Class Declarations, Method Definitions, Function Declarations

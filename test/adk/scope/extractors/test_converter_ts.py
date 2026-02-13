@@ -9,6 +9,8 @@ from google.adk.scope.extractors.converter_ts import NodeProcessor
 class TestNodeProcessor(unittest.TestCase):
     def setUp(self):
         self.processor = NodeProcessor()
+        # Bypass export check for existing bare mocks
+        self.processor._is_exported = lambda node: True
         self.repo_root = Path("/repo")
         self.file_path = Path("/repo/src/core/src/agent.ts")
 
@@ -500,6 +502,33 @@ class TestNodeProcessor(unittest.TestCase):
         result = self.processor.process(node, self.file_path, self.repo_root)
         self.assertTrue(result.HasField("maturity"))
         self.assertEqual(result.maturity, feature_pb2.Feature.Maturity.BETA)
+
+    def test_global_type_map_explosion(self):
+        self.processor.global_type_map = {
+            "MyRequest": {"field1": ("string", False), "field2": ("number", True)}
+        }
+        
+        name = self.create_mock_node("identifier", text="f")
+        name.field_name = "name"
+        
+        p1_name = self.create_mock_node("identifier", text="request")
+        p1_type = self.create_mock_node("type_annotation", text=": MyRequest")
+        p1_type.field_name = "type"
+        
+        p1_node = self.create_mock_node("required_parameter", children=[p1_name, p1_type])
+        p1_node.child_by_field_name.side_effect = lambda n: p1_type if n == "type" else None
+        
+        params_node = self.create_mock_node("parameters", children=[p1_node])
+        params_node.field_name = "parameters"
+        
+        node = self.create_mock_node("function_declaration", children=[name, params_node])
+        node.child_by_field_name.side_effect = lambda n: name if n == "name" else (params_node if n == "parameters" else None)
+        
+        result = self.processor.process(node, self.file_path, self.repo_root)
+        self.assertEqual(len(result.parameters), 2)
+        names = [p.original_name for p in result.parameters]
+        self.assertIn("field1", names)
+        self.assertIn("field2", names)
 
     def test_jsdoc_edge_cases(self):
         # 1. JSDoc on export statement

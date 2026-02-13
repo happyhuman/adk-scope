@@ -35,19 +35,19 @@ class TestNodeProcessor(unittest.TestCase):
 
     def test_process_simple_function(self):
         # Construct a simple function node: func my_func() {}
-        name_node = self.create_mock_node("identifier", text="my_func")
+        name_node = self.create_mock_node("identifier", text="MyFunc")
         name_node.field_name = "name"
 
         node = self.create_mock_node(
             "function_declaration",
             children=[name_node],
-            text="func my_func() {}",
+            text="func MyFunc() {}",
         )
 
         result = self.processor.process(node, self.file_path, self.repo_root, "google.adk", "google_adk")
 
         self.assertIsNotNone(result)
-        self.assertEqual(result.original_name, "my_func")
+        self.assertEqual(result.original_name, "MyFunc")
         self.assertEqual(result.normalized_name, "my_func")
         self.assertEqual(result.type, Feature.Type.FUNCTION)
 
@@ -110,7 +110,7 @@ class TestNodeProcessor(unittest.TestCase):
         )
         params_node.field_name = "parameters"
 
-        name_node = self.create_mock_node("identifier", text="my_func")
+        name_node = self.create_mock_node("identifier", text="MyFunc")
         name_node.field_name = "name"
 
         node = self.create_mock_node(
@@ -129,8 +129,8 @@ class TestNodeProcessor(unittest.TestCase):
         self.assertEqual(result.parameters[1].normalized_types, [feature_pb2.ParamType.STRING])
 
     def test_return_types(self):
-        # func my_func() string {}
-        name_node = self.create_mock_node("identifier", text="my_func")
+        # func MyFunc() string {}
+        name_node = self.create_mock_node("identifier", text="MyFunc")
         name_node.field_name = "name"
 
         return_type_node = self.create_mock_node("type_identifier", text="string")

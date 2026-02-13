@@ -36,6 +36,9 @@ def extract_features(
     file_path: pathlib.Path, repo_root: pathlib.Path, source_root: str
 ) -> List[Feature]:
     """Extract Feature objects from a Go file."""
+    if file_path.name.endswith("_test.go"):
+        return []
+
     try:
         # Resolve paths to absolute to prevent normalization issues
         file_path = file_path.resolve()

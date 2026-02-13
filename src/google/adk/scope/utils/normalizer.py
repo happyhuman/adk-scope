@@ -212,7 +212,7 @@ class TypeNormalizer:
         if not t:
             return ["OBJECT"]
 
-        if t in ("void", "Void"):
+        if t.lower() in ("void", "completable"):
             return ["NULL"]
 
         # Handle formatting like byte[] as array
@@ -231,6 +231,7 @@ class TypeNormalizer:
                 "Mono",
                 "Flux",
                 "Promise",
+                "Single",
             ):
                 return self._normalize_java_type(inner)
 

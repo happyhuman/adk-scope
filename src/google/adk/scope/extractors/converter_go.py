@@ -36,6 +36,10 @@ class NodeProcessor:
         if not original_name:
             return None
 
+        # Exclude unexported functions/methods (lowercase first letter)
+        if original_name and original_name[0].islower():
+            return None
+
         feature_type = feature_pb2.Feature.Type.FUNCTION
         member_of = ""
         normalized_member_of = ""
@@ -43,6 +47,8 @@ class NodeProcessor:
         if node.type == "method_declaration":
             feature_type = feature_pb2.Feature.Type.INSTANCE_METHOD
             member_of = self._extract_receiver_type(node)
+            if member_of and member_of[0].islower():
+                member_of = member_of[0].upper() + member_of[1:]
             normalized_member_of = normalize_name(member_of) if member_of else ""
         elif node.type == "function_declaration" and original_name.startswith("New"):
             feature_type = feature_pb2.Feature.Type.CONSTRUCTOR
@@ -126,6 +132,11 @@ class NodeProcessor:
                 if name_node and type_node:
                     param_name = name_node.text.decode("utf-8")
                     param_type = type_node.text.decode("utf-8")
+
+                    # Skip Go context.Context parameters to align with other languages
+                    if param_type == "context.Context":
+                        continue
+
                     norm_types = self.normalizer.normalize(param_type, "go")
                     norm_enums = [getattr(feature_pb2, nt) for nt in norm_types]
 

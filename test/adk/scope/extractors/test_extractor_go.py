@@ -25,7 +25,8 @@ class TestExtractor(unittest.TestCase):
         self, mock_parser, mock_query_cls, mock_cursor_cls
     ):
         mock_path = MagicMock(spec=Path)
-        mock_path.read_bytes.return_value = b"func my_func() {}"
+        mock_path.name = "agent.go"
+        mock_path.read_bytes.return_value = b"func MyFunc() {}"
 
         mock_tree = MagicMock()
         mock_parser.parse.return_value = mock_tree
@@ -59,7 +60,7 @@ class TestExtractor(unittest.TestCase):
         ) as MockProcessor:
             processor_instance = MockProcessor.return_value
             expected_feature = Feature(
-                original_name="my_func", normalized_name="my_func"
+                original_name="MyFunc", normalized_name="my_func"
             )
             processor_instance.process.return_value = expected_feature
 
