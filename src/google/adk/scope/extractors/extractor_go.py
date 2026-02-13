@@ -67,18 +67,8 @@ def extract_features(
     captures = cursor.captures(root_node)
 
     all_nodes = []
-    for capture in captures:
-        node = capture[0]
-        tag = capture[1]
-
-        # Robustly handle tag name (handles both index and string)
-        if isinstance(tag, str):
-            tag_name = tag
-        else:
-            tag_name = query.capture_names[tag]
-
-        if tag_name in ("func", "method"):
-            all_nodes.append(node)
+    for node_list in captures.values():
+        all_nodes.extend(node_list)
 
     # Log results for debugging
     if not all_nodes:
@@ -87,14 +77,47 @@ def extract_features(
         logger.info("Found %d potential nodes in %s", len(all_nodes), file_path)
 
     for node in all_nodes:
-        # Ensure the processor gets the node and context
-        feature = processor.process(node, file_path, repo_root)
+        # Filter out simple functions (e.g., getters, setters) by checking the body.
+        # Note: In Go AST, the function 'body' is a 'block' which contains a 'statement_list'.
+        # We need to check the size of the 'statement_list' to know the actual number of statements.
+        body_node = node.child_by_field_name("body")
+        if body_node:
+            stmt_list = next((child for child in body_node.children if child.type == "statement_list"), None)
+            # If there is no statement list, or it has 1 or fewer statements, consider it simple.
+            if stmt_list is None or stmt_list.named_child_count <= 1:
+                function_name_node = node.child_by_field_name("name")
+                if function_name_node:
+                    logger.debug(
+                        "Skipping simple function: %s", function_name_node.text.decode("utf8")
+                    )
+                continue
+
+        # Prepare namespace and normalized namespace
+        try:
+            rel_path = file_path.relative_to(repo_root)
+            parts = list(rel_path.parent.parts)
+            # Remove hidden dirs or known roots if needed (Go usually relies on dir path or go.mod, 
+            # we'll use the relative directory path as base).
+            parts = [p for p in parts if p and p not in (".", "..", "src")]
+            namespace = ".".join(parts)
+        except ValueError:
+            namespace = ""
+
+        # Using the same normalization logic as earlier for parity
+        normalized_namespace = normalize_namespace(
+            str(file_path), str(repo_root / source_root)
+        )
+
+        # Ensure the processor gets the node and context (including namespace)
+        feature = processor.process(
+            node, 
+            file_path, 
+            repo_root, 
+            namespace, 
+            normalized_namespace
+        )
         
         if feature:
-            # Source root needs to be relative to repo root for normalize_namespace
-            feature.normalized_namespace = normalize_namespace(
-                str(file_path), str(repo_root / source_root)
-            )
             features.append(feature)
             logger.debug("Extracted feature: %s", feature.original_name)
         else:

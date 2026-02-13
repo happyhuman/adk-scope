@@ -21,7 +21,12 @@ class NodeProcessor:
         self.normalizer = TypeNormalizer()
 
     def process(
-        self, node: Node, file_path: Path, repo_root: Path
+        self,
+        node: Node,
+        file_path: Path,
+        repo_root: Path,
+        namespace: str,
+        normalized_namespace: str,
     ) -> Optional[feature_pb2.Feature]:
         """Convert a Tree-sitter node into a Feature."""
         if node.type not in ("function_declaration", "method_declaration"):
@@ -31,25 +36,80 @@ class NodeProcessor:
         if not original_name:
             return None
 
+        feature_type = feature_pb2.Feature.Type.FUNCTION
+        member_of = ""
+        normalized_member_of = ""
+
+        if node.type == "method_declaration":
+            feature_type = feature_pb2.Feature.Type.INSTANCE_METHOD
+            member_of = self._extract_receiver_type(node)
+            normalized_member_of = normalize_name(member_of) if member_of else ""
+        elif node.type == "function_declaration" and original_name.startswith("New"):
+            feature_type = feature_pb2.Feature.Type.CONSTRUCTOR
+
         parameters = self._extract_params(node)
+
+        original_returns, normalized_returns = self._extract_return_types(node)
 
         feature = feature_pb2.Feature(
             original_name=original_name,
             normalized_name=normalize_name(original_name),
+            member_of=member_of,
+            normalized_member_of=normalized_member_of,
             file_path=str(file_path.resolve()),
-            type=feature_pb2.Feature.FUNCTION,  # Default to FUNCTION for now
+            namespace=namespace,
+            normalized_namespace=normalized_namespace,
+            type=feature_type,
             parameters=parameters,
-            original_return_types=self._extract_return_types(node),
+            original_return_types=original_returns,
+            normalized_return_types=normalized_returns,
         )
 
         return feature
 
-    def _extract_return_types(self, node: Node) -> list[str]:
-        """Extract return types from a function_declaration node."""
+    def _extract_receiver_type(self, node: Node) -> str:
+        """Extract the receiver type from a method_declaration."""
+        receiver_node = node.child_by_field_name("receiver")
+        if not receiver_node:
+            return ""
+
+        for child in receiver_node.children:
+            if child.type == "parameter_declaration":
+                type_node = child.child_by_field_name("type")
+                if type_node:
+                    return type_node.text.decode("utf-8").lstrip("*")
+        return ""
+
+    def _extract_return_types(self, node: Node) -> tuple[list[str], list[feature_pb2.ParamType]]:
+        """Extract return types from a function_declaration node, ignoring 'error'."""
         return_node = node.child_by_field_name("result")
-        if return_node:
-            return [return_node.text.decode("utf-8")]
-        return []
+        if not return_node:
+            return [], []
+
+        raw_types = []
+        
+        # If the return is a single type identifier or pointer
+        if return_node.type in ("type_identifier", "pointer_type", "qualified_type", "slice_type", "map_type"):
+            raw_types.append(return_node.text.decode("utf-8"))
+        # If it returns multiple types, they are wrapped in a parameter_list
+        elif return_node.type == "parameter_list":
+            for child in return_node.children:
+                if child.type == "parameter_declaration":
+                    type_node = child.child_by_field_name("type")
+                    if type_node:
+                        raw_types.append(type_node.text.decode("utf-8"))
+        
+        original_returns = []
+        normalized_returns = []
+        
+        for raw in raw_types:
+            if raw == "error":
+                continue
+            original_returns.append(raw)
+            norm_types = self.normalizer.normalize(raw, "go")
+            normalized_returns.extend(norm_types)
+                
+        return original_returns, normalized_returns
 
     def _extract_params(self, node: Node) -> list[feature_pb2.Param]:
         """Extract parameters from a function_declaration node."""
@@ -66,11 +126,14 @@ class NodeProcessor:
                 if name_node and type_node:
                     param_name = name_node.text.decode("utf-8")
                     param_type = type_node.text.decode("utf-8")
+                    norm_types = self.normalizer.normalize(param_type, "go")
+                    norm_enums = [getattr(feature_pb2, nt) for nt in norm_types]
 
                     p = feature_pb2.Param(
                         original_name=param_name,
                         normalized_name=normalize_name(param_name),
                         original_types=[param_type],
+                        normalized_types=norm_enums,
                     )
                     params.append(p)
         return params

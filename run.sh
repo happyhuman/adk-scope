@@ -36,4 +36,4 @@ echo "Generating symmetric reports..."
 ./report.sh --base output/py.txtpb --target output/go.txtpb --output ./output --report-type symmetric
 
 echo "Generating directional reports (py->go)..."
-./report.sh --base output/py.txtpb --target output/java.txtpb --output ./output --report-type directional
+./report.sh --base output/py.txtpb --target output/go.txtpb --output ./output --report-type directional

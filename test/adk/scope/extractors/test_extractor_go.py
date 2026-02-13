@@ -34,7 +34,21 @@ class TestExtractor(unittest.TestCase):
         mock_cursor_instance = mock_cursor_cls.return_value
 
         mock_func_node = MagicMock()
+        mock_func_body = MagicMock()
+        mock_func_stmt_list = MagicMock()
+        mock_func_stmt_list.type = "statement_list"
+        mock_func_stmt_list.named_child_count = 2
+        mock_func_body.children = [mock_func_stmt_list]
+        mock_func_node.child_by_field_name.return_value = mock_func_body
+
         mock_method_node = MagicMock()
+        mock_method_body = MagicMock()
+        mock_method_stmt_list = MagicMock()
+        mock_method_stmt_list.type = "statement_list"
+        mock_method_stmt_list.named_child_count = 2
+        mock_method_body.children = [mock_method_stmt_list]
+        mock_method_node.child_by_field_name.return_value = mock_method_body
+        
         mock_cursor_instance.captures.return_value = {
             "func": [mock_func_node],
             "method": [mock_method_node],
