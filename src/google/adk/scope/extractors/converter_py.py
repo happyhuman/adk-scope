@@ -30,6 +30,9 @@ class NodeProcessor:
             file_path: Absolute path to the file.
             repo_root: Root of the repository.
         """
+        if node.type == "class_definition":
+            return self._process_dataclass(node, file_path, repo_root)
+
         if node.type != "function_definition":
             return None
 
@@ -57,6 +60,16 @@ class NodeProcessor:
         )
 
         if not member_of:
+            # Skip top-level functions contained in private python modules
+            if file_path.name.startswith("_") and file_path.name != "__init__.py":
+                logger.debug("Skipping top-level function in private module: %s", original_name)
+                return None
+            
+            # Skip top-level functions within cli sub-modules which are generally executable scopes
+            if "cli" in file_path.parts:
+                logger.debug("Skipping top-level CLI internal function: %s", original_name)
+                return None
+            
             member_of = "null"
 
         namespace, normalized_namespace = self._extract_namespace(
@@ -115,6 +128,91 @@ class NodeProcessor:
         if name_node:
             return name_node.text.decode("utf-8")
         return ""
+
+    def _process_dataclass(
+        self, node: Node, file_path: Path, repo_root: Path
+    ) -> Optional[feature_pb2.Feature]:
+        body_node = node.child_by_field_name("body")
+        if not body_node:
+            return None
+
+        has_init = False
+        params = []
+
+        for child in body_node.children:
+            if child.type == "function_definition":
+                name = self._extract_name(child)
+                if name == "__init__":
+                    has_init = True
+                    break
+            elif child.type == "expression_statement":
+                for expr in child.children:
+                    if expr.type == "assignment":
+                        left = expr.child_by_field_name("left")
+                        if not left or left.type != "identifier":
+                            continue
+                        param_name = left.text.decode("utf-8")
+                        if param_name.startswith("_"):
+                            continue
+
+                        type_node = expr.child_by_field_name("type")
+                        right_node = expr.child_by_field_name("right")
+
+                        param = feature_pb2.Param(
+                            original_name=param_name,
+                            normalized_name=normalize_name(param_name),
+                            is_optional=bool(right_node)
+                        )
+
+                        normalized_strings = []
+                        if type_node:
+                            raw_type = type_node.text.decode("utf-8")
+                            param.original_types.append(raw_type)
+                            normalized_strings = self.normalizer.normalize(raw_type, "python")
+                        
+                        if not normalized_strings:
+                            normalized_strings = ["OBJECT"]
+
+                        for s in normalized_strings:
+                            try:
+                                enum_val = getattr(feature_pb2.ParamType, s.upper())
+                                param.normalized_types.append(enum_val)
+                            except AttributeError:
+                                param.normalized_types.append(feature_pb2.ParamType.OBJECT)
+
+                        params.append(param)
+
+        if has_init or not params:
+            return None
+
+        original_name = self._extract_name(node)
+        normalized_name = normalize_name(original_name)
+        namespace, normalized_namespace = self._extract_namespace(
+            file_path, repo_root
+        )
+
+        docstring = self._extract_docstring(node)
+        description = docstring
+        if "Args:" in docstring:
+            description = docstring.split("Args:")[0].strip()
+        elif "Arguments:" in docstring:
+            description = docstring.split("Arguments:")[0].strip()
+
+        feature = feature_pb2.Feature(
+            type=feature_pb2.Feature.CONSTRUCTOR,
+            original_name=original_name,
+            normalized_name=normalized_name,
+            member_of=original_name,
+            normalized_member_of=normalized_name,
+            file_path=str(file_path.resolve()),
+            namespace=namespace,
+            normalized_namespace=normalized_namespace,
+        )
+        feature.parameters.extend(params)
+        if description:
+            feature.description = description
+
+        return feature
 
     def _extract_docstring(self, node: Node) -> str:
         # structure: function_definition -> body -> expression_statement
@@ -305,6 +403,8 @@ class NodeProcessor:
                 "typed_parameter",
                 "default_parameter",
                 "typed_default_parameter",
+                "list_splat_pattern",
+                "dictionary_splat_pattern",
             ):
                 p = self._process_param_node(child)
                 if p:
@@ -327,7 +427,7 @@ class NodeProcessor:
         types = []
         optional = False
 
-        if node.type == "identifier":
+        if node.type in ("identifier", "list_splat_pattern", "dictionary_splat_pattern"):
             name = node.text.decode("utf-8")
 
         elif node.type == "typed_parameter":
@@ -357,6 +457,8 @@ class NodeProcessor:
 
         if not name:
             return None
+
+        name = name.lstrip("*")
 
         normalized_strings = []
         for t in types:
