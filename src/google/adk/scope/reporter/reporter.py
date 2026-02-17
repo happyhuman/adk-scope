@@ -76,10 +76,11 @@ def match_registries(
     registries: List[features_pb2.FeatureRegistry],
     alpha: float,
     report_type: str = "md",
+    common: bool = False,
 ) -> MatchResult:
     """Matches features and generates reports."""
     if report_type == "matrix":
-        reporter = MatrixReportGenerator(registries, alpha)
+        reporter = MatrixReportGenerator(registries, alpha, common)
     else:
         if len(registries) != 2:
             raise ValueError(f"Report type '{report_type}' requires exactly 2 registries.")
@@ -97,9 +98,11 @@ class MatrixReportGenerator:
         self,
         registries: List[features_pb2.FeatureRegistry],
         alpha: float,
+        common: bool = False,
     ):
         self.registries = registries
         self.alpha = alpha
+        self.common = common
 
         self.langs = [_get_language_name(r.language) for r in self.registries]
 
@@ -222,6 +225,15 @@ class MatrixReportGenerator:
         lines = ["## Global Feature Support", ""]
         
         for mod in sorted(final_by_mod.keys()):
+            mod_rows = final_by_mod[mod]
+            
+            if self.common:
+                python_idx = self.langs.index("Python") if "Python" in self.langs else -1
+                mod_rows = [row for row in mod_rows if python_idx in row or len(row) >= 2]
+                
+            if not mod_rows:
+                continue
+
             lines.append(f"### Module: `{mod}`")
             header = "| Feature | Type | " + " | ".join(self.langs) + " |"
             divider = "| :--- | :--- |" + " :---: |" * len(self.langs)
@@ -233,7 +245,6 @@ class MatrixReportGenerator:
                 rep_f = row[rep_idx]
                 return (matcher._get_type_priority(rep_f), rep_f.normalized_name or "")
                 
-            mod_rows = final_by_mod[mod]
             mod_rows.sort(key=get_sort_key)
 
             for row in mod_rows:
@@ -536,6 +547,11 @@ def main():
         default="md",
         help="Type of gap report to generate (md, raw, matrix).",
     )
+    parser.add_argument(
+        "--common",
+        action="store_true",
+        help="Only list features present in Python or at least 2 languages (matrix report only).",
+    )
     adk_args.add_verbose_argument(parser)
     args = parser.parse_args()
     adk_args.configure_logging(args)
@@ -559,7 +575,7 @@ def main():
         logging.error(f"Error reading feature registries: {e}")
         sys.exit(1)
 
-    result = match_registries(registries, args.alpha, args.report_type)
+    result = match_registries(registries, args.alpha, args.report_type, args.common)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)

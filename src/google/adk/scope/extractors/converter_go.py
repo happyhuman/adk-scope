@@ -64,7 +64,7 @@ class NodeProcessor:
                 normalize_name(member_of) if member_of else ""
             )
 
-        parameters = self._extract_params(node)
+        parameters, is_async = self._extract_params(node)
 
         original_returns, normalized_returns = self._extract_return_types(node)
         
@@ -83,6 +83,8 @@ class NodeProcessor:
             original_return_types=original_returns,
             normalized_return_types=normalized_returns,
         )
+        if is_async:
+            setattr(feature, "async", True)
 
         if docstring:
             feature.description = docstring
@@ -171,6 +173,7 @@ class NodeProcessor:
         if not params_node:
             return []
 
+        is_async = False
         for child in params_node.children:
             if child.type == "parameter_declaration":
                 name_node = child.child_by_field_name("name")
@@ -183,6 +186,7 @@ class NodeProcessor:
                     # Skip Go context.Context parameters to align with other
                     # languages
                     if param_type == "context.Context":
+                        is_async = True
                         continue
 
                     norm_types = self.normalizer.normalize(param_type, "go")
@@ -195,7 +199,7 @@ class NodeProcessor:
                         normalized_types=norm_enums,
                     )
                     params.append(p)
-        return params
+        return params, is_async
 
     def _extract_name(self, node: Node) -> str:
         """Extract the name from a function_declaration node."""

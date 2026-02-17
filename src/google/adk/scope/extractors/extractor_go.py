@@ -28,9 +28,13 @@ def find_files(
     iterator = root.rglob("*.go") if recursive else root.glob("*.go")
 
     for path in iterator:
-        # Check if any part of the path starts with '.' (excluding '.' and '..')
+        if path.name.endswith("_test.go"):
+            continue
+
+        # Exclude hidden directories, files, and common testing directories
         if any(
-            part.startswith(".") and part not in (".", "..")
+            (part.startswith(".") and part not in (".", ".."))
+            or part in ("tests", "testutil", "testing", "testdata")
             for part in path.parts
         ):
             continue
@@ -118,13 +122,22 @@ def extract_features(
                 # If there is no statement list, or it has 1 or fewer statements,
                 # consider it simple.
                 if stmt_list is None or stmt_list.named_child_count <= 1:
-                    function_name_node = node.child_by_field_name("name")
-                    if function_name_node:
-                        logger.debug(
-                            "Skipping simple function: %s",
-                            function_name_node.text.decode("utf8"),
-                        )
-                    continue
+                    # Also check physical line span to prevent skipping large
+                    # single-statement functions (e.g. methods returning a large
+                    # anonymous function).
+                    start_row = body_node.start_point[0]
+                    end_row = body_node.end_point[0]
+                    line_span = end_row - start_row + 1
+
+                    if line_span <= 4:
+                        function_name_node = node.child_by_field_name("name")
+                        if function_name_node:
+                            logger.debug(
+                                "Skipping simple function: %s (span: %d lines)",
+                                function_name_node.text.decode("utf8"),
+                                line_span
+                            )
+                        continue
 
         # Prepare namespace and normalized namespace
         try:
