@@ -83,17 +83,19 @@ for REG_FILE in "${REGISTRIES[@]}"; do
 done
 
 # Construct filename
-if [ "$REPORT_TYPE" == "raw" ]; then
-    EXTENSION="csv"
-else
-    EXTENSION="md"
-fi
+# Default to markdown extension. The python script will generate CSV alongside it.
+EXTENSION="md"
 
 if [ "$REPORT_TYPE" == "matrix" ]; then
     # e.g., py_ts_go.md
     OUTPUT_FILENAME="$(IFS=_; echo "${LANG_CODES[*]}").${EXTENSION}"
 else
+    # Standard 2-way report
     OUTPUT_FILENAME="${LANG_CODES[0]}_${LANG_CODES[1]}.${EXTENSION}"
+    # Ensure report type is 'md' for standard logic so unified generator runs
+    if [ "$REPORT_TYPE" == "raw" ]; then
+        REPORT_TYPE="md"
+    fi
 fi
 
 FULL_OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"

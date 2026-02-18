@@ -255,7 +255,7 @@ class SimilarityScorer:
             + scores["namespace"] * current_weights["namespace"]
         )
 
-        early_exit_threshold = self.alpha * (
+        early_exit_threshold = 0.8 * (
             current_weights["name"]
             + current_weights["member_of"]
             + current_weights["namespace"]

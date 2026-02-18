@@ -1,3 +1,4 @@
+
 import argparse
 import dataclasses
 import logging
@@ -5,34 +6,19 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from google.protobuf import text_format
+import pandas as pd
 
 from google.adk.scope import features_pb2
 from google.adk.scope.matcher import matcher
+from google.adk.scope.reporter import raw
 from google.adk.scope.utils import args as adk_args
 from google.adk.scope.utils import stats
 from google.adk.scope.utils.similarity import SimilarityScorer
 
 _NEAR_MISS_THRESHOLD = 0.15
-
-# Global thresholds for match confidence
-# Keys are frozenset of language codes (e.g., frozenset(['py', 'go']))
-SIMILARITY_THRESHOLDS = {
-    frozenset(["py", "go"]): {
-        "high": 0.6,
-        "avg": 0.5,
-    },
-    frozenset(["py", "java"]): {
-        "high": 0.6,
-        "avg": 0.58,
-    },
-    frozenset(["py", "ts"]): {
-        "high": 0.7,
-        "avg": 0.55,
-    },
-}
 
 
 @dataclasses.dataclass
@@ -93,22 +79,37 @@ def _read_feature_registry(file_path: str) -> features_pb2.FeatureRegistry:
 def match_registries(
     registries: List[features_pb2.FeatureRegistry],
     alpha: float,
-    report_type: str = "md",
+    report_type: str = "md",  # Kept for backward compatibility/matrix logic
     common: bool = False,
+    output_path: Optional[Path] = None,
 ) -> MatchResult:
     """Matches features and generates reports."""
     if report_type == "matrix":
         reporter = MatrixReportGenerator(registries, alpha, common)
+        return reporter.generate_report("matrix")
     else:
         if len(registries) != 2:
-            raise ValueError(f"Report type '{report_type}' requires exactly 2 registries.")
-        reporter = ReportGenerator(
-            registries[0],
-            registries[1],
-            alpha,
-        )
-
-    return reporter.generate_report(report_type)
+            raise ValueError(
+                f"Report type '{report_type}' requires exactly 2 registries."
+            )
+        
+        # New unified flow for standard reports
+        generator = raw.RawReportGenerator(registries[0], registries[1])
+        
+        # Generate DataFrame (and CSV if path provided)
+        csv_path = None
+        if output_path:
+            # If output is "report.md", csv will be "report.csv"
+            # If output is "report.csv", md will be "report.md"
+            stem = output_path.stem
+            parent = output_path.parent
+            csv_path = str(parent / f"{stem}.csv")
+            
+        df = generator.generate(output_path=csv_path)
+        
+        # Generate Markdown Report from DataFrame
+        reporter = ReportGenerator(registries[0], registries[1], df)
+        return reporter.generate_md_report()
 
 
 class MatrixReportGenerator:
@@ -225,7 +226,7 @@ class MatrixReportGenerator:
                         if feat is b_f:
                             row_dict[i] = t_f
                             break
-
+                
                 # Record unmatched targets as new rows
                 # t_list was mutated by match_features (items removed)
                 for t_f in t_list:
@@ -291,6 +292,7 @@ class MatrixReportGenerator:
             "",
             "## Registries",
             "| Role | Language | Version |",
+            "| :--- | :--- | :--- |",
             "| :--- | :--- | :--- |"
         ]
         
@@ -315,153 +317,19 @@ class ReportGenerator:
         self,
         base_registry: features_pb2.FeatureRegistry,
         target_registry: features_pb2.FeatureRegistry,
-        alpha: float,
+        df: pd.DataFrame,
     ):
         self.base_registry = base_registry
         self.target_registry = target_registry
-
-        self.features_base = _group_features_by_module(base_registry)
-        self.features_target = _group_features_by_module(target_registry)
-        matcher.fuzzy_match_namespaces(self.features_base, self.features_target)
-        self.alpha = alpha
-
-    def generate_report(self, report_type) -> MatchResult:
-        """Generates report."""
-        if report_type == "raw":
-            return self.generate_raw_report()
-        elif report_type == "md":
-            return self.generate_md_report()
-        else:
-            raise ValueError(f"Unknown report type: {report_type}")
-
-    def generate_raw_report(self) -> MatchResult:
-        """Generates a raw CSV report using global best-match logic.
-
-        For every feature in the base registry, finds the best matching feature
-        in the target registry with the same TYPE, regardless of module/namespace.
-        """
-        base_code = _get_language_code(self.base_registry.language)
-        target_code = _get_language_code(self.target_registry.language)
-
-        csv_header = (
-            f"py_namespace,py_member_of,py_name,"
-            f"java_namespace,java_member_of,java_name,"
-            "type,score,match,confidence"
-        )
-        # Use user-requested headers if languages match expectation, otherwise dynamic
-        if base_code == "py" and target_code == "java":
-             pass # Header is already correct for the user's specific request example
-        else:
-             # Fallback to dynamic headers if not exactly py/java as requested
-             csv_header = (
-                f"{base_code}_namespace,{base_code}_member_of,{base_code}_name,"
-                f"{target_code}_namespace,{target_code}_member_of,{target_code}_name,"
-                "type,score,match,confidence"
-            )
-
-        csv_lines = [csv_header]
-
-        def get_feature_cols(f: features_pb2.Feature) -> tuple[str, str, str]:
-            ns = f.namespace or ""
-            if not ns and f.normalized_namespace:
-                ns = f.normalized_namespace
-
-            mem = f.member_of or ""
-            if not mem and f.normalized_member_of:
-                mem = f.normalized_member_of
-            if mem.lower() == "null":
-                mem = ""
-
-            name = f.original_name or f.normalized_name or ""
-            return ns, mem, name
-
-        def esc_csv(s):
-            if s is None:
-                return ""
-            s = str(s)
-            if "," in s or '"' in s or "\n" in s:
-                return '"{}"'.format(s.replace('"', '""'))
-            return s
-
-        # 1. Index target features by Type for faster lookup
-        target_by_type = defaultdict(list)
-        for f in self.target_registry.features:
-            target_by_type[f.type].append(f)
-
-        scorer = SimilarityScorer(alpha=self.alpha)
-
-        # 2. Iterate over all base features
-        for f_base in self.base_registry.features:
-            candidates = target_by_type.get(f_base.type, [])
-            
-            best_match = None
-            best_score = -1.0
-
-            if candidates:
-                # Find best match among candidates of same type
-                for f_target in candidates:
-                    score = scorer.get_similarity_score(f_base, f_target)
-                    if score > best_score:
-                        best_score = score
-                        best_match = f_target
-            
-            # 3. Write row if we have a match (even if score is 0, user might want to see it? 
-            # Actually user said "pair with maximum similarity score should be included")
-            # We will include it if it matches the best score logic. 
-            # If no candidates exist, we print empties for target.
-            
-            b_ns, b_mem, b_name = get_feature_cols(f_base)
-            f_type = matcher.get_type_display_name(f_base)
-
-            if best_match:
-                t_ns, t_mem, t_name = get_feature_cols(best_match)
-                final_score = best_score
-            else:
-                t_ns, t_mem, t_name = "", "", ""
-                final_score = 0.0
-
-            # Determine match and confidence
-            thresholds = SIMILARITY_THRESHOLDS.get(
-                frozenset([base_code, target_code])
-            )
-
-            match_str = "false"
-            confidence_str = "low"
-
-            if thresholds:
-                if final_score > thresholds["high"]:
-                    match_str = "true"
-                    confidence_str = "high"
-                elif final_score >= thresholds["avg"]:
-                    match_str = "true"
-                    confidence_str = "low"
-                else:
-                    match_str = "false"
-                    confidence_str = "high"
-            else:
-                # Default behavior if no thresholds defined for this pair
-                # Fallback to general alpha or just say low confidence?
-                # User only provided specific pairs.
-                match_str = "true" if final_score >= self.alpha else "false"
-                confidence_str = "low"
-
-            csv_lines.append(
-                f"{esc_csv(b_ns)},{esc_csv(b_mem)},{esc_csv(b_name)},"
-                f"{esc_csv(t_ns)},{esc_csv(t_mem)},{esc_csv(t_name)},"
-                f"{esc_csv(f_type)},{final_score:.4f},"
-                f"{match_str},{confidence_str}"
-            )
-
-        return MatchResult(
-            master_content="\n".join(csv_lines),
-            module_files={},
-        )
+        self.df = df
+        
+        self.base_code = _get_language_code(base_registry.language)
+        self.target_code = _get_language_code(target_registry.language)
+        self.base_name = _get_language_name(base_registry.language)
+        self.target_name = _get_language_name(target_registry.language)
 
     def generate_md_report(self) -> MatchResult:
-        """Generates a Markdown parity report."""
-        all_modules = sorted(
-            set(self.features_base.keys()) | set(self.features_target.keys())
-        )
+        """Generates a Markdown parity report from the DataFrame."""
         master_lines = []
         master_lines.extend(
             [
@@ -486,78 +354,172 @@ class ReportGenerator:
         master_lines.append("GLOBAL_SCORE_PLACEHOLDER")
         master_lines.append("")
 
-        b_lang = _get_language_name(self.base_registry.language)
-        t_lang = _get_language_name(self.target_registry.language)
-
-        header = f"| ADK | Module | Features ({b_lang}) | Score | Status | Details |"
-        divider = "|---|---|---|---|---|---|"
+        header = f"| Module | Features ({self.base_name}) | Score | Status | Details |"
+        divider = "|---|---|---|---|---|"
 
         master_lines.extend(["## Module Summary", header, divider])
 
         module_files = {}
         module_rows = []
-        total_solid_matches = 0
+        
+        # Determine cols based on language codes
+        col_ns = f"{self.base_code}_namespace"
+        
+        # Group by base namespace
+        # If namespace is empty, group under "Unknown Module"
+        self.df["_module_group"] = self.df[col_ns].replace("", "Unknown Module")
+        
+        grouped = self.df.groupby("_module_group")
+        
+        total_high = 0
+        total_low = 0
+        total_mismatch = 0
+        total_base_features = len(self.df)
 
-        base_code = _get_language_code(self.base_registry.language)
-        target_code = _get_language_code(self.target_registry.language)
-
-        for module in all_modules:
-            mod_base_list = self.features_base.get(module, [])
-            mod_target_list = self.features_target.get(module, [])
-
-            results = matcher.process_module(
-                module,
-                mod_base_list,
-                mod_target_list,
-                self.alpha,
-                b_lang,
-                t_lang,
-                base_code,
-                target_code,
+        for module, group in grouped:
+            # Calculate module stats
+            high = len(group[group["confidence"] == "high"])
+            low = len(group[group["confidence"] == "low"])
+            mismatches = len(group[group["match"] == "false"])
+            
+            # Actually, `high` and `low` confidence applies to matches usually
+            # But let's verify what `match` column says.
+            matches_high = len(group[(group["match"] == "true") & (group["confidence"] == "high")])
+            matches_low = len(group[(group["match"] == "true") & (group["confidence"] == "low")])
+            # Everything else is a mismatch or low confidence match?
+            # Let's trust `match` column for parity score
+            solid_matches_count = len(group[group["match"] == "true"])
+            
+            total_high += matches_high
+            total_low += matches_low
+            total_mismatch += mismatches
+            
+            module_total = len(group)
+            score = solid_matches_count / module_total if module_total > 0 else 0.0
+            
+            # Generate Module File Content
+            module_filename = f"{module}.md"
+            module_content = self._generate_module_content(module, group, module_total, matches_high, matches_low, mismatches)
+            module_files[module_filename] = module_content
+            
+            # Add summary row
+            status_icon = "✅" if score == 1.0 else "⚠️" if score > 0.5 else "❌"
+            row_str = (
+                f"| `{module}` | {module_total} | "
+                f"{score:.2%} | {status_icon} | [View Details]({{modules_dir}}/{module_filename}) |"
             )
-            total_solid_matches += results["solid_matches_count"]
-            module_rows.append((results["score"], results["row_content"]))
-            if results.get("module_filename"):
-                module_files[results["module_filename"]] = results[
-                    "module_content"
-                ]
+            module_rows.append((score, row_str))
 
         module_rows.sort(key=lambda x: x[0], reverse=True)
         master_lines.extend([row for _, row in module_rows])
 
-        total_base_features = len(self.base_registry.features)
-        total_target_features = len(self.target_registry.features)
-
-        # Calculate metrics for the summary table
-        base_exclusive = total_base_features - total_solid_matches
-        target_exclusive = total_target_features - total_solid_matches
-
-        union_size = total_base_features + total_target_features - total_solid_matches
-        parity_score = total_solid_matches / union_size if union_size > 0 else 1.0
-
-        b_lang = _get_language_name(self.base_registry.language)
-        t_lang = _get_language_name(self.target_registry.language)
-
+        # Summary Stats
+        total_matches = total_high + total_low
+        parity_score = total_matches / total_base_features if total_base_features > 0 else 1.0
+        
+        base_exclusive = total_base_features - total_matches
+        
         global_stats = (
             "## Summary\n\n"
             "| Feature Category | Count | Details |\n"
             "| :--- | :--- | :--- |\n"
-            f"| **✅ Common Shared** | **{total_solid_matches}** | "
-            f"Implemented in both SDKs |\n"
-            f"| **📦 Exclusive to `{b_lang}`** | **{base_exclusive}** | "
-            f"Requires implementation in `{t_lang}` |\n"
-            f"| **📦 Exclusive to `{t_lang}`** | **{target_exclusive}** | "
-            f"Requires implementation in `{b_lang}` |\n"
-            f"| **📊 Jaccard Score** | **{parity_score:.2%}** | "
-            f"Overall Parity ({total_solid_matches} / {union_size}) |"
+            f"| **✅ High Confidence Matches** | **{total_high}** | "
+            f"Strong matches found in `{self.target_name}` |\n"
+            f"| **⚠️ Low Confidence Matches** | **{total_low}** | "
+            f"Likely matches needing verification |\n"
+            f"| **❌ Mismatches** | **{base_exclusive}** | "
+            f"No suitable match found in `{self.target_name}` |\n"
+            f"| **📊 Coverage Score** | **{parity_score:.2%}** | "
+            f"Matches / Total Base Features ({total_matches} / {total_base_features}) |"
         )
-
+        
         master_lines[global_score_idx] = global_stats
 
         return MatchResult(
             master_content="\n".join(master_lines).strip(),
             module_files=module_files,
         )
+
+    def _generate_module_content(
+        self, 
+        module: str, 
+        group: pd.DataFrame,
+        total_features: int,
+        high_conf: int,
+        low_conf: int,
+        mismatches: int
+    ) -> str:
+        
+        # Calculate scores for summary
+        total_matches = high_conf + low_conf
+        coverage = total_matches / total_features if total_features > 0 else 0.0
+        
+        summary_table = (
+            "## Summary\n\n"
+            "| Feature Category | Count | Details |\n"
+            "| :--- | :--- | :--- |\n"
+            f"| **✅ High Confidence Matches** | **{high_conf}** | "
+            f"Strong matches found in `{self.target_name}` |\n"
+            f"| **⚠️ Low Confidence Matches** | **{low_conf}** | "
+            f"Likely matches needing verification |\n"
+            f"| **❌ Mismatches** | **{mismatches}** | "
+            f"No suitable match found in `{self.target_name}` |\n"
+            f"| **📊 Coverage Score** | **{coverage:.2%}** | "
+            f"Matches / Total Base Features ({total_matches} / {total_features}) |\n"
+        )
+
+        lines = [
+            f"# Module: `{module}`",
+            "",
+            f"[← Back to Master Report]({{master_report}})",
+            "",
+            summary_table,
+            "## Feature Details",
+            "",
+            f"| Module ({self.base_name}) | Container ({self.base_name}) | Name ({self.base_name}) | Module ({self.target_name}) | Container ({self.target_name}) | Name ({self.target_name}) | Score | Match | Confidence |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: | :---: |",
+        ]
+        
+        # Sort by score desc, then name
+        group_sorted = group.sort_values(by=["score", f"{self.base_code}_name"], ascending=[False, True])
+        
+        for _, row in group_sorted.iterrows():
+            # Base logic
+            b_ns = row[f'{self.base_code}_namespace']
+            b_mem = row[f'{self.base_code}_member_of']
+            b_name = row[f'{self.base_code}_name']
+            
+            # Target logic
+            t_ns = row[f'{self.target_code}_namespace']
+            t_mem = row[f'{self.target_code}_member_of']
+            t_name = row[f'{self.target_code}_name']
+            
+            if t_name == "" and t_mem == "" and t_ns == "":
+                t_name = "*(None)*"
+                
+            score = row['score']
+            match_val = row['match']
+            conf_val = row['confidence']
+            
+            if match_val == "true":
+                if conf_val == "high":
+                    match_icon = "✅"
+                else:
+                    match_icon = "⚠️"
+            else:
+                match_icon = "❌"
+
+            conf_display = conf_val.title()
+            if conf_display == "High":
+                conf_display = "**High**"
+                
+            lines.append(
+                f"| `{b_ns}` | `{b_mem}` | `{b_name}` | "
+                f"`{t_ns}` | `{t_mem}` | `{t_name}` | "
+                f"{score:.4f} | {match_icon} | {conf_display} |"
+            )
+            
+        return "\n".join(lines)
 
 
 def main():
@@ -583,7 +545,7 @@ def main():
     parser.add_argument(
         "--output",
         required=True,
-        help="Path to save the Markdown report.",
+        help="Path to save the Markdown report. Corresponding CSV will be saved with same stem.",
     )
     parser.add_argument(
         "--alpha",
@@ -595,7 +557,7 @@ def main():
         "--report-type",
         choices=["md", "raw", "matrix"],
         default="md",
-        help="Type of gap report to generate (md, raw, matrix).",
+        help="Type of gap report. 'md' or 'raw' now produce both. 'matrix' is separate.",
     )
     parser.add_argument(
         "--common",
@@ -625,24 +587,30 @@ def main():
         logging.error(f"Error reading feature registries: {e}")
         sys.exit(1)
 
-    result = match_registries(registries, args.alpha, args.report_type, args.common)
-
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if args.report_type == "raw":
-        # Raw report is a single file, no modules directory needed
+    result = match_registries(
+        registries, 
+        args.alpha, 
+        args.report_type, 
+        args.common, 
+        output_path=output_path
+    )
+
+    if args.report_type == "matrix":
+        # Matrix only writes one file
         try:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(result.master_content)
-            logging.info(
-                f"Successfully wrote raw match report to {output_path}"
-            )
+            logging.info(f"Successfully wrote matrix report to {output_path}")
         except Exception as e:
-            logging.error(f"Error writing raw report to {output_path}: {e}")
+            logging.error(f"Error writing matrix report: {e}")
             sys.exit(1)
         return
 
+    # For standard report, we already generated CSV inside match_registries.
+    # Now write the Markdown and Modules.
+    
     # Create module directory
     if result.module_files:
         modules_dir_name = f"{output_path.stem}_modules"
@@ -653,8 +621,8 @@ def main():
         for filename, content in result.module_files.items():
             # Replace placeholder for master report link
             # The link is relative from module dir to master report
-            # So name is enough.
-            final_content = content.replace("{master_report}", output_path.name)
+            # We are in {stem}_modules/, so we need to go up one level.
+            final_content = content.replace("{master_report}", f"../{output_path.name}")
             (modules_dir / filename).write_text(final_content)
 
         # Replace placeholder in Master Report
@@ -667,9 +635,15 @@ def main():
         master_report = result.master_content.replace("{modules_dir}", ".")
 
     try:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(master_report)
         logging.info(f"Successfully wrote match report to {output_path}")
+        # Note: CSV writing is logged inside RawReportGenerator or we should log it here
+        # Actually RawReportGenerator doesn't log, so we might want to Add a log here if we knew it matched
+        stem = output_path.stem
+        csv_path = output_path.parent / f"{stem}.csv"
+        if csv_path.exists():
+             logging.info(f"Successfully wrote raw match report to {csv_path}")
+
     except Exception as e:
         logging.error(f"Error writing report to {output_path}: {e}")
         sys.exit(1)

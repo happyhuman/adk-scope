@@ -12,7 +12,7 @@ echo "Extracting Go features..."
 
 # Py -> TS
 
-echo "Generating symmetric reports..."
+echo "Generating  reports..."
 ./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type md
 
 echo "Generating raw reports..."
@@ -20,7 +20,7 @@ echo "Generating raw reports..."
 
 # Py -> Java
 
-echo "Generating symmetric reports..."
+echo "Generating reports..."
 ./report.sh --base output/py.txtpb --target output/java.txtpb --output ./output --report-type md
 
 echo "Generating raw reports..."
@@ -28,7 +28,7 @@ echo "Generating raw reports..."
 
 # Py -> Go
 
-echo "Generating symmetric reports..."
+echo "Generating reports..."
 ./report.sh --base output/py.txtpb --target output/go.txtpb --output ./output --report-type md
 
 echo "Generating raw reports..."

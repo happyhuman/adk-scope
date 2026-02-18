@@ -53,7 +53,7 @@ def match_features(
     if not base_features or not target_features:
         return []
 
-    scorer = SimilarityScorer(alpha=alpha)
+    scorer = SimilarityScorer()
     matches = []
 
     # Build Cost Matrix (Rows=Base, Cols=Target)
