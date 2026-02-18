@@ -86,16 +86,10 @@ Once you have extracted features from two languages (e.g., Python and TypeScript
 | `--target <path>` | **Required.** Path to the comparison registry (e.g., TypeScript). |
 | `--output <dir>` | **Required.** Path for the output directory. The report filename is auto-generated. |
 | `--report-type <type>` | `md` (default) for Markdown Parity Report, or `raw` for CSV. |
-| `--alpha <float>` | Similarity threshold (0.0 - 1.0). Default is `0.8`. |
 
 #### How Matching Works
 
-The matcher uses the **Hungarian Algorithm** to find the optimal assignment between features in the Base and Target registries.
--   **Cost Function**: Based on a similarity score derived from:
-    -   Feature Name (normalized)
-    -   Namespace / Module
-    -   Feature Type (Function, Method, Class, etc.)
--   **Thresholding**: Pairs with a similarity score below `--alpha` are discarded.
+TODO: This needs updating
 
 #### Understanding the Reports
 

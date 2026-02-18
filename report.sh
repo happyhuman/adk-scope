@@ -5,7 +5,6 @@ set -e
 
 # Default values
 REPORT_TYPE="md"
-ALPHA="0.8"
 VERBOSE=""
 COMMON=""
 
@@ -34,10 +33,6 @@ while [[ "$#" -gt 0 ]]; do
             ;;
         --report-type)
             REPORT_TYPE="$2"
-            shift 2
-            ;;
-        --alpha)
-            ALPHA="$2"
             shift 2
             ;;
         -v|--verbose)
@@ -86,16 +81,11 @@ done
 # Default to markdown extension. The python script will generate CSV alongside it.
 EXTENSION="md"
 
-if [ "$REPORT_TYPE" == "matrix" ]; then
-    # e.g., py_ts_go.md
-    OUTPUT_FILENAME="$(IFS=_; echo "${LANG_CODES[*]}").${EXTENSION}"
-else
-    # Standard 2-way report
-    OUTPUT_FILENAME="${LANG_CODES[0]}_${LANG_CODES[1]}.${EXTENSION}"
-    # Ensure report type is 'md' for standard logic so unified generator runs
-    if [ "$REPORT_TYPE" == "raw" ]; then
-        REPORT_TYPE="md"
-    fi
+# Standard 2-way report
+OUTPUT_FILENAME="${LANG_CODES[0]}_${LANG_CODES[1]}.${EXTENSION}"
+# Ensure report type is 'md' for standard logic so unified generator runs
+if [ "$REPORT_TYPE" == "raw" ]; then
+    REPORT_TYPE="md"
 fi
 
 FULL_OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
@@ -106,11 +96,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Add 'src' to PYTHONPATH so the python script can find modules
 export PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH}"
 
-# Run the python matcher
+# Run the python reporter
 python3 "${SCRIPT_DIR}/src/google/adk/scope/reporter/reporter.py" \
     --registries "${REGISTRIES[@]}" \
     --output "${FULL_OUTPUT_PATH}" \
     --report-type "${REPORT_TYPE}" \
-    --alpha "${ALPHA}" \
     ${COMMON} \
     ${VERBOSE}
