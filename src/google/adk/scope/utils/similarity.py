@@ -3,7 +3,7 @@ from typing import Optional
 
 import numpy as np
 from jellyfish import levenshtein_distance
-from rapidfuzz import fuzz
+
 from scipy.optimize import linear_sum_assignment
 
 from google.adk.scope import features_pb2 as features_pb
@@ -26,22 +26,17 @@ class SimilarityScorer:
     def __init__(
         self,
         weights: Optional[dict[str, float]] = None,
-        alpha: float = 0.8,
-        similarity_algorithm: str = "token_set_ratio",
     ):
-        self.alpha = alpha
         self.weights = weights or DEFAULT_SIMILARITY_WEIGHTS
-        self.similarity_algorithm = similarity_algorithm
         logger.debug(
-            f"Initializing SimilarityScorer with alpha={alpha}, "
-            f"algorithm={similarity_algorithm}, weights={self.weights}"
+            f"Initializing SimilarityScorer with "
+            f"weights={self.weights}"
         )
         assert "name" in self.weights
         assert "member_of" in self.weights
         assert "namespace" in self.weights
         assert "parameters" in self.weights
         assert "return_type" in self.weights
-        assert self.similarity_algorithm in {"levenshtein", "token_set_ratio"}
 
     def get_similarity(self, s1: str, s2: str) -> float:
         """Calculates similarity between two strings using the selected algorithm."""
@@ -50,14 +45,10 @@ class SimilarityScorer:
         if not s1 or not s2:
             return 0.0
 
-        if self.similarity_algorithm == "token_set_ratio":
-            # rapidfuzz.fuzz.token_set_ratio returns 0-100
-            return fuzz.token_set_ratio(s1, s2) / 100.0
-        else:
-            # Default to Levenshtein
-            dist = levenshtein_distance(s1, s2)
-            max_len = max(len(s1), len(s2))
-            return 1.0 - (dist / max_len)
+        # Default to Levenshtein
+        dist = levenshtein_distance(s1, s2)
+        max_len = max(len(s1), len(s2))
+        return 1.0 - (dist / max_len)
         return 1.0 - (dist / max_len)
 
     def _fuzzy_type_match(self, types1: list, types2: list) -> float:

@@ -13,12 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description="Calculate similarity score between two features.")
     parser.add_argument("feature1", type=Path, help="Path to first feature file (text proto).")
     parser.add_argument("feature2", type=Path, help="Path to second feature file (text proto).")
-    parser.add_argument(
-        "--algorithm",
-        choices=["levenshtein", "token_set_ratio"],
-        default="levenshtein",
-        help="String similarity algorithm to use.",
-    )
+
     args = parser.parse_args()
 
     # Configure logging to DEBUG
@@ -34,9 +29,7 @@ def main():
         f2 = features_pb2.Feature()
         text_format.Parse(f2_content, f2)
 
-        print(f'Using the {args.algorithm} algorithm...')
-
-        scorer = SimilarityScorer(alpha=0.1, similarity_algorithm=args.algorithm)
+        scorer = SimilarityScorer()
         score = scorer.get_similarity_score(f1, f2)
         
         print("-" * 40)
