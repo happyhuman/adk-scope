@@ -36,6 +36,8 @@ class TestExtractor(unittest.TestCase):
 
         mock_func_node = MagicMock()
         mock_func_body = MagicMock()
+        mock_func_body.start_point = (1, 0)
+        mock_func_body.end_point = (10, 0)  # span = 10 lines
         mock_func_stmt_list = MagicMock()
         mock_func_stmt_list.type = "statement_list"
         mock_func_stmt_list.named_child_count = 2
@@ -44,6 +46,8 @@ class TestExtractor(unittest.TestCase):
 
         mock_method_node = MagicMock()
         mock_method_body = MagicMock()
+        mock_method_body.start_point = (12, 0)
+        mock_method_body.end_point = (20, 0)  # span = 9 lines
         mock_method_stmt_list = MagicMock()
         mock_method_stmt_list.type = "statement_list"
         mock_method_stmt_list.named_child_count = 2

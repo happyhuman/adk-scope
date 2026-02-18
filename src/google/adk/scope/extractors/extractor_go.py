@@ -28,9 +28,13 @@ def find_files(
     iterator = root.rglob("*.go") if recursive else root.glob("*.go")
 
     for path in iterator:
-        # Check if any part of the path starts with '.' (excluding '.' and '..')
+        if path.name.endswith("_test.go"):
+            continue
+
+        # Exclude hidden directories, files, and common testing directories
         if any(
-            part.startswith(".") and part not in (".", "..")
+            (part.startswith(".") and part not in (".", ".."))
+            or part in ("tests", "testutil", "testing", "testdata")
             for part in path.parts
         ):
             continue
@@ -66,6 +70,11 @@ def extract_features(
         return []
 
     processor = NodeProcessor()
+
+    # Pre-process structs to build the definition map
+    # We need to re-query or process struct nodes specifically.
+    # To keep it simple, let's just use the query we have.
+    pass
     features = []
 
     # REVISED QUERY: Matches the declaration nodes.
@@ -73,43 +82,91 @@ def extract_features(
     query_text = """
         (function_declaration) @func
         (method_declaration) @method
+        (type_declaration
+          (type_spec
+            name: (type_identifier) @interface_name
+            type: (interface_type
+              (method_elem) @interface_method
+            )
+          )
+        )
+        (type_declaration
+          (type_spec
+            name: (type_identifier) @struct_name
+            type: (struct_type) @struct_body
+          )
+        )
     """
     query = Query(GO_LANGUAGE, query_text)
     cursor = QueryCursor(query)
     captures = cursor.captures(root_node)
 
     all_nodes = []
-    for node_list in captures.values():
-        all_nodes.extend(node_list)
+    struct_nodes = []
+    # We only want to process the actual function/method nodes, not the
+    # interface names which are captured just for context by the processor
+    # (via tree traversal).
+    for capture_name, node_list in captures.items():
+        if capture_name in ("func", "method", "interface_method"):
+            all_nodes.extend(node_list)
+        elif capture_name == "struct_body":
+            # We need to associate the struct body with its name.
+            # The query captures @struct_name and @struct_body separately but
+            # in order.
+            # However, 'captures' is a dict of lists, so order might be tricky
+            # if we rely on index alignment across lists.
+            # Better strategy: Capture the parent type_spec and process it?
+            # Or iterate the captures list (which we can't easily do with the
+            # dict output).
+            # Let's rely on NodeProcessor to find the name from the struct_body
+            # node's parent.
+            struct_nodes.extend(node_list)
 
     # Log results for debugging
     logger.debug("Found %d potential nodes in %s", len(all_nodes), file_path)
 
+    # Build struct definitions map first
+    for node in struct_nodes:
+        processor.register_struct(node)
+
     for node in all_nodes:
-        # Filter out simple functions (e.g., getters, setters) by checking
-        # the body. Note: In Go AST, the function 'body' is a 'block' which
-        # contains a 'statement_list'. We need to check the size of the
-        # 'statement_list' to know the actual number of statements.
-        body_node = node.child_by_field_name("body")
-        if body_node:
-            stmt_list = next(
-                (
-                    child
-                    for child in body_node.children
-                    if child.type == "statement_list"
-                ),
-                None,
-            )
-            # If there is no statement list, or it has 1 or fewer statements,
-            # consider it simple.
-            if stmt_list is None or stmt_list.named_child_count <= 1:
-                function_name_node = node.child_by_field_name("name")
-                if function_name_node:
-                    logger.debug(
-                        "Skipping simple function: %s",
-                        function_name_node.text.decode("utf8"),
-                    )
-                continue
+        # Prevent filtering out abstract interface methods which have no body
+        if node.type == "method_elem":
+            pass
+        else:
+            # Filter out simple functions (e.g., getters, setters) by checking
+            # the body. Note: In Go AST, the function 'body' is a 'block' which
+            # contains a 'statement_list'. We need to check the size of the
+            # 'statement_list' to know the actual number of statements.
+            body_node = node.child_by_field_name("body")
+            if body_node:
+                stmt_list = next(
+                    (
+                        child
+                        for child in body_node.children
+                        if child.type == "statement_list"
+                    ),
+                    None,
+                )
+                # If there is no statement list, or it has 1 or fewer
+                # statements, consider it simple.
+                if stmt_list is None or stmt_list.named_child_count <= 1:
+                    # Also check physical line span to prevent skipping large
+                    # single-statement functions (e.g. methods returning a large
+                    # anonymous function).
+                    start_row = body_node.start_point[0]
+                    end_row = body_node.end_point[0]
+                    line_span = end_row - start_row + 1
+
+                    if line_span <= 4:
+                        function_name_node = node.child_by_field_name("name")
+                        if function_name_node:
+                            logger.debug(
+                                "Skipping simple function: %s (span: %d lines)",
+                                function_name_node.text.decode("utf8"),
+                                line_span,
+                            )
+                        continue
 
         # Prepare namespace and normalized namespace
         try:
@@ -146,7 +203,21 @@ def extract_features(
 
 
 def get_version(repo_root: pathlib.Path) -> str:
-    """Get the module path from a go.mod file."""
+    """Get the version of the ADK from internal/version/version.go."""
+    version_path = repo_root / "internal" / "version" / "version.go"
+    if version_path.exists():
+        try:
+            content = version_path.read_text()
+            for line in content.splitlines():
+                if "const Version string =" in line:
+                    # e.g., const Version string = "0.3.0"
+                    parts = line.split('"')
+                    if len(parts) >= 3:
+                        return parts[1]
+        except Exception as e:
+            logger.warning("Failed to read version.go file: %s", e)
+
+    # Fallback to reading go.mod module path if version isn't found
     go_mod_path = repo_root / "go.mod"
     if go_mod_path.exists():
         try:
@@ -156,4 +227,5 @@ def get_version(repo_root: pathlib.Path) -> str:
                     return line.split()[1]
         except Exception as e:
             logger.warning("Failed to read go.mod file: %s", e)
+
     return ""

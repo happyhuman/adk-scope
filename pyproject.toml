@@ -22,6 +22,8 @@ dependencies = [
     "scipy",
     "numpy",
     "jellyfish",
+    "RapidFuzz",
+    "pandas",
 ]
 
 

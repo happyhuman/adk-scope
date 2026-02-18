@@ -1,12 +1,12 @@
 import os
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from google.protobuf import text_format
 
 from google.adk.scope import features_pb2
-from google.adk.scope.matcher import matcher
 from google.adk.scope.reporter import reporter
 
 
@@ -90,7 +90,7 @@ class TestReporter(unittest.TestCase):
             original_name="totally_diff",
             normalized_name="totally",
             member_of="null",
-            namespace="google.adk.events",
+            namespace="stuff",
             normalized_member_of="different",
             normalized_namespace="stuff",
             type=features_pb2.Feature.Type.INSTANCE_METHOD,
@@ -106,187 +106,76 @@ class TestReporter(unittest.TestCase):
         )
         target_registry.features.extend([f2, f_near_target])
 
-        # Test Symmetric Report
-        result_sym = reporter.match_registries(
-            base_registry, target_registry, 0.9, report_type="symmetric"
-        )
-        report_sym = result_sym.master_content
+        # Test Markdown Report
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "report.md"
+            result_md = reporter.generate_markdown_raw_reports(
+                [base_registry, target_registry],
+                report_type="md",
+                output_path=output_path,
+            )
+            report_md = result_md.main_report_content
 
-        # 1. Verify Master Report Structure
-        self.assertIn("# Feature Matching Report: Symmetric", report_sym)
-        self.assertIn("**Jaccard Index:** 25.00%", report_sym)
-        self.assertIn("## Module Summary", report_sym)
+            # 1. Verify Master Report Structure
+            self.assertIn("# Feature Matching Parity Report", report_md)
+            self.assertIn("## Summary", report_md)
+            # Check for High/Low confidence summaries
+            self.assertIn(
+                "| **✅ High Confidence Matches** | **1** |", report_md
+            )
+            self.assertIn("| **⚠️ Low Confidence Matches** | **1** |", report_md)
+            self.assertIn("| **❌ Mismatches** | **1** |", report_md)
+            self.assertIn("## Module Summary", report_md)
 
-        # Check for module entry in master summary
-        self.assertIn("| `n_same` |", report_sym)
-        self.assertIn("[View Details]({modules_dir}/n_same.md)", report_sym)
+            # Check for module entry in master summary
+            self.assertIn(
+                "| Module | Features (Python) | Score | Status | Details |",
+                report_md,
+            )
+            self.assertIn("| `google.adk.events` |", report_md)
 
-        # 2. Verify Module Content
-        self.assertIn("n_same.md", result_sym.module_files)
-        module_content = result_sym.module_files["n_same.md"]
+            self.assertIn(
+                "[View Details]({modules_dir}/google.adk.events.md)", report_md
+            )
 
-        self.assertIn("# Module: `n_same`", module_content)
-        self.assertIn("**Features:** 3", module_content)
+            # 2. Verify Module Content
+            self.assertIn("google.adk.events.md", result_md.module_reports)
+            module_content = result_md.module_reports["google.adk.events.md"]
 
-        # Solid Matches
-        self.assertIn("### ✅ Solid Features", module_content)
-        self.assertIn(
-            "| Type | Base Feature | Target Feature | Similarity Score |",
-            module_content,
-        )
-        self.assertIn(
-            "| method | `BaseClass.fSameBase` | `TargetClass.fSameTarget` |",
-            module_content,
-        )
+            self.assertIn("# Module: `google.adk.events`", module_content)
+            # New summary table in module
+            self.assertIn("## Summary", module_content)
+            self.assertIn("## Feature Details", module_content)
 
-        # Potential Matches (formerly Near Misses)
-        self.assertIn("### ⚠️ Potential Matches", module_content)
-        self.assertIn(
-            "| Type | Base Feature | Closest Target Candidate | Similarity |",
-            module_content,
-        )
-        self.assertIn(
-            "| method | `base_member.base_name` | "
-            "`target_member.target_name` |",
-            module_content,
-        )
+            # Solid Matches (High Confidence)
+            self.assertIn("✅", module_content)
+            self.assertIn("**High**", module_content)
+            self.assertIn("`fSameBase`", module_content)
+            self.assertIn("`fSameTarget`", module_content)
 
-        # Unmatched / Gaps (in 'stuff' module)
-        self.assertIn("stuff.md", result_sym.module_files)
-        stuff_content = result_sym.module_files["stuff.md"]
-        self.assertIn("### ❌ Unmatched Features", stuff_content)
-        self.assertIn("| `totally_diff` | Target |", stuff_content)
-        self.assertIn("**Features:** 1", stuff_content)
+            # Potential Matches (Low Confidence)
+            self.assertIn("⚠️", module_content)
+            self.assertIn("Low", module_content)
+            self.assertIn("`base_name`", module_content)
+            self.assertIn("`target_name`", module_content)
 
-        # Test Directional Report
-        result_dir = reporter.match_registries(
-            base_registry, target_registry, 0.9, report_type="directional"
-        )
-        report_dir = result_dir.master_content
+            # Unmatched / Gaps (in 'stuff' module)
+            self.assertIn("stuff.md", result_md.module_reports)
+            stuff_content = result_md.module_reports["stuff.md"]
+            self.assertIn("❌", stuff_content)
+            self.assertIn("`totally_diff`", stuff_content)
 
-        self.assertIn("| **F1 Score** | 40.00% |", report_dir)
-        self.assertIn("n_same.md", result_dir.module_files)
-
-        mod_dir_content = result_dir.module_files["n_same.md"]
-
-        # Solid Matches
-        self.assertIn("### ✅ Matched Features", mod_dir_content)
-        self.assertIn(
-            "| Type | Base Feature | Target Feature | Similarity Score |",
-            mod_dir_content,
-        )
-        self.assertIn(
-            "| method | `BaseClass.fSameBase` | `TargetClass.fSameTarget` |",
-            mod_dir_content,
-        )
-
-        # Potential Matches
-        self.assertIn("### ⚠️ Potential Matches", mod_dir_content)
-        self.assertIn(
-            "| Type | Base Feature | Closest Target Candidate | Similarity |",
-            mod_dir_content,
-        )
-        self.assertIn(
-            "| method | `base_member.base_name` | "
-            "`target_member.target_name` |",
-            mod_dir_content,
-        )
-
-        # Unmatched / Gaps (in 'stuff' module)
-        self.assertIn("stuff.md", result_dir.module_files)
-        stuff_dir_content = result_dir.module_files["stuff.md"]
-        self.assertIn("### ❌ Missing in Target", stuff_dir_content)
-        self.assertIn("| `totally_diff` |", stuff_dir_content)
-
-    def test_match_registries_raw(self):
-        f1 = features_pb2.Feature(
-            original_name="f_same",
-            normalized_name="f_same",
-            normalized_namespace="pkg",
-            member_of="MyClass",
-            normalized_member_of="myclass",
-            type=features_pb2.Feature.Type.FUNCTION,
-        )
-        base = features_pb2.FeatureRegistry(language="Python", version="1")
-        base.features.append(f1)
-        target = features_pb2.FeatureRegistry(language="TS", version="2")
-        target.features.append(f1)
-
-        result = reporter.match_registries(base, target, 0.9, report_type="raw")
-        csv_content = result.master_content
-
-        expected_header = (
-            "python_namespace,python_member_of,python_name,ts_namespace,"
-            "ts_member_of,ts_name,type,score"
-        )
-        self.assertIn(expected_header, csv_content)
-
-        # Check for solid match line
-        # f1 has: ns=pkg, mem=MyClass, name=f_same
-        # Match should have same values for base and target
-        expected_line = "pkg,MyClass,f_same,pkg,MyClass,f_same,function,1.0000"
-        self.assertIn(expected_line, csv_content)
-        self.assertFalse(result.module_files)
-
-    def test_group_features_by_module(self):
-        registry = features_pb2.FeatureRegistry()
-        f1 = registry.features.add()
-        f1.namespace = "module.one"
-        f2 = registry.features.add()
-        f2.namespace = "module.two"
-        f3 = registry.features.add()
-        f3.namespace = "module.one"
-
-        result = reporter._group_features_by_module(registry)
-
-        self.assertIn("module.one", result)
-        self.assertIn("module.two", result)
-        self.assertEqual(len(result["module.one"]), 2)
-        self.assertEqual(len(result["module.two"]), 1)
-
-    def test_process_module(self):
-        """Tests the end-to-end processing of a single module."""
+    def test_generate_raw_report(self):
+        """Tests the raw CSV report generation via RawReportGenerator."""
         f_base = features_pb2.Feature(
             original_name="f1_base",
             normalized_name="f1_base",
-            normalized_namespace="n1",
+            namespace="n1",
+            member_of="c1",
             type=features_pb2.Feature.Type.FUNCTION,
         )
+        # f_target is a perfect match
         f_target = features_pb2.Feature(
-            original_name="f1_target",
-            normalized_name="f1_target",
-            normalized_namespace="n1",
-            type=features_pb2.Feature.Type.FUNCTION,
-        )
-
-        with patch(
-            "google.adk.scope.reporter.reporter.matcher.match_features"
-        ) as mock_match:
-            # Let's assume one solid match and no potential matches
-            mock_match.side_effect = [
-                [(f_base, f_target, 0.95)],  # Solid matches
-                [],  # Potential matches
-            ]
-
-            result = matcher.process_module(
-                module="n1",
-                base_list=[f_base],
-                target_list=[f_target],
-                alpha=0.9,
-                report_type="symmetric",
-                base_lang_code="py",
-                target_lang_code="ts",
-            )
-
-            self.assertEqual(result["solid_matches_count"], 1)
-            self.assertEqual(result["score"], 1.0)
-            self.assertIn("| py, ts |", result["row_content"])
-            self.assertIn("# Module: `n1`", result["module_content"])
-            self.assertIn("### ✅ Solid Features", result["module_content"])
-
-    def test_generate_raw_report(self):
-        """Tests the raw CSV report generation."""
-        f_base = features_pb2.Feature(
             original_name="f1_base",
             normalized_name="f1_base",
             namespace="n1",
@@ -301,89 +190,70 @@ class TestReporter(unittest.TestCase):
         target_registry = features_pb2.FeatureRegistry(
             language="TypeScript", version="2.0.0"
         )
+        target_registry.features.extend([f_target])
 
-        with patch(
-            "google.adk.scope.reporter.reporter.matcher.match_features"
-        ) as mock_match:
-            mock_match.return_value = []  # No matches for simplicity
+        # Use RawReportGenerator directly
+        generator = reporter.raw.RawReportGenerator(
+            base_registry, target_registry
+        )
+        df = generator.generate()
 
-            result = reporter.ReportGenerator(
-                base_registry, target_registry, 0.9
-            ).generate_raw_report()
+        # Check columns
+        self.assertIn("py_namespace", df.columns)
+        self.assertIn("score", df.columns)
 
-            self.assertIn(
-                "python_namespace,python_member_of,python_name",
-                result.master_content,
-            )
-            self.assertIn("n1,c1,f1_base", result.master_content)
+        # Check content
+        row = df.iloc[0]
+        self.assertEqual(row["py_name"], "f1_base")
+        self.assertEqual(row["score"], 1.0)
 
-    def test_generate_symmetric_report(self):
-        """Tests the symmetric report generation."""
+    def test_global_best_match(self):
+        """Tests that a feature matches best candidate globally, ignoring
+        namespace."""
+        # Base feature in namespace 'n1'
+        f_base = features_pb2.Feature(
+            original_name="my_feature",
+            normalized_name="my_feature",
+            namespace="n1",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+
+        # Target feature 1: Same namespace, but different name (low score)
+        f_target_bad = features_pb2.Feature(
+            original_name="other_feature",
+            normalized_name="other_feature",
+            namespace="n1",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+
+        # Target feature 2: Different namespace, but same name (high score)
+        f_target_good = features_pb2.Feature(
+            original_name="my_feature",
+            normalized_name="my_feature",
+            namespace="n2",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+
         base_registry = features_pb2.FeatureRegistry(
-            language="Python", version="1.0.0"
+            language="Python", version="1"
         )
-        f1 = base_registry.features.add()
-        f1.namespace = "n1"
+        base_registry.features.append(f_base)
+
         target_registry = features_pb2.FeatureRegistry(
-            language="TypeScript", version="2.0.0"
+            language="Java", version="2"
         )
+        target_registry.features.extend([f_target_bad, f_target_good])
 
-        with patch(
-            "google.adk.scope.reporter.reporter.matcher.process_module"
-        ) as mock_process:
-            mock_process.return_value = {
-                "solid_matches_count": 1,
-                "score": 1.0,
-                "row_content": "| py, ts | `n1` | 1 | 100.00% | ✅ | n1.md |",
-                "module_filename": "n1.md",
-                "module_content": "# Module: `n1`",
-            }
-
-            result = reporter.ReportGenerator(
-                base_registry, target_registry, 0.9
-            ).generate_symmetric_report()
-
-            self.assertIn(
-                "# Feature Matching Report: Symmetric", result.master_content
-            )
-            self.assertIn("**Jaccard Index:**", result.master_content)
-            self.assertIn("## Module Summary", result.master_content)
-            self.assertIn("| `n1` |", result.master_content)
-            self.assertIn("n1.md", result.module_files)
-
-    def test_generate_directional_report(self):
-        """Tests the directional report generation."""
-        base_registry = features_pb2.FeatureRegistry(
-            language="Python", version="1.0.0"
+        # RawReportGenerator logic
+        generator = reporter.raw.RawReportGenerator(
+            base_registry, target_registry
         )
-        f1 = base_registry.features.add()
-        f1.namespace = "n1"
-        target_registry = features_pb2.FeatureRegistry(
-            language="TypeScript", version="2.0.0"
-        )
+        df = generator.generate()
 
-        with patch(
-            "google.adk.scope.reporter.reporter.matcher.process_module"
-        ) as mock_process:
-            mock_process.return_value = {
-                "solid_matches_count": 1,
-                "score": 1.0,
-                "row_content": "| `n1` | 1 | 100.00% | ✅ | n1.md |",
-                "module_filename": "n1.md",
-                "module_content": "# Module: `n1`",
-            }
-
-            result = reporter.ReportGenerator(
-                base_registry, target_registry, 0.9
-            ).generate_directional_report()
-
-            self.assertIn(
-                "# Feature Matching Report: Directional", result.master_content
-            )
-            self.assertIn("| **F1 Score** |", result.master_content)
-            self.assertIn("## Module Summary", result.master_content)
-            self.assertIn("| `n1` |", result.master_content)
-            self.assertIn("n1.md", result.module_files)
+        # Check that we found the match in n2
+        row = df.iloc[0]
+        self.assertEqual(row["java_namespace"], "n2")
+        self.assertEqual(row["score"], 1.0)
 
     def test_raw_integration(self):
         """Tests the raw report generation end-to-end."""
@@ -455,18 +325,99 @@ class TestReporter(unittest.TestCase):
             typescript_features_str, features_pb2.FeatureRegistry()
         )
 
-        result = reporter.ReportGenerator(
-            py_registry, ts_registry, 0.8
-        ).generate_raw_report()
+        generator = reporter.raw.RawReportGenerator(py_registry, ts_registry)
+        df = generator.generate()
 
-        self.assertIn(
-            "python_namespace,python_member_of,python_name,ts_namespace,ts_member_of,ts_name,type,score",
-            result.master_content,
+        # Verify solid match (high score)
+        row = df.iloc[0]
+        self.assertEqual(row["py_name"], "load_artifact")
+        self.assertEqual(row["ts_name"], "loadArtifact")
+        self.assertGreater(row["score"], 0.8)
+
+    def test_raw_report_match_confidence(self):
+        """Tests match and confidence columns with various scores."""
+        # 1. High match (score 0.9 > 0.6 for py/go)
+        f_high = features_pb2.Feature(
+            original_name="high",
+            normalized_name="high",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+        # 2. Avg match (score 0.55 between 0.5 and 0.6 for py/go)
+        f_avg = features_pb2.Feature(
+            original_name="high",
+            normalized_name="high_ish",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+        # 3. Low match (score 0.1 < 0.5 for py/go)
+        f_low = features_pb2.Feature(
+            original_name="high",
+            normalized_name="completely_different",
+            type=features_pb2.Feature.Type.FUNCTION,
         )
 
-        print(result.master_content)
-        self.assertEqual(len(result.master_content.splitlines()), 2)
-        # A known match
+        base = features_pb2.FeatureRegistry(language="Python", version="1")
+        base.features.append(f_high)
+
+        target = features_pb2.FeatureRegistry(language="Go", version="1")
+        # We need to craft targets that produce specific scores or mock the
+        # scorer. It's easier to mock SimilarityScorer to return fixed scores.
+        target.features.extend([f_high, f_avg, f_low])
+
+        with patch(
+            "google.adk.scope.reporter.raw.SimilarityScorer"
+        ) as MockScorer:
+            instance = MockScorer.return_value
+
+            # Case 1: High match
+            instance.get_similarity_score.return_value = 0.9
+            gen = reporter.raw.RawReportGenerator(base, target)
+            df = gen.generate()
+            # Since generate iterates through base features, and we have 1 base
+            # feature, it will run once. We need to test behavior for different
+            # scores. But generate() does all at once.
+
+            # Actually, `generate` iterates through base features.
+            # If we want to test different outcomes, we should perhaps just
+            # test the _get_confidence_level method or ensure our mock returns
+            # different values for different calls if possible, or just run 3
+            # separate gens.
+
+            # Test High
+            self.assertEqual(df.iloc[0]["match"], "true")
+            self.assertEqual(df.iloc[0]["confidence"], "high")
+
+            # Test Avg (Low Confidence)
+            instance.get_similarity_score.return_value = 0.55
+            gen = reporter.raw.RawReportGenerator(base, target)
+            df = gen.generate()
+            self.assertEqual(df.iloc[0]["match"], "true")
+            self.assertEqual(df.iloc[0]["confidence"], "low")
+
+            # Test Low (Mismatch)
+            instance.get_similarity_score.return_value = 0.4
+            gen = reporter.raw.RawReportGenerator(base, target)
+            df = gen.generate()
+            self.assertEqual(df.iloc[0]["match"], "false")
+            self.assertEqual(
+                df.iloc[0]["confidence"], "high"
+            )  # Mismatches are high confidence if very low score?
+            # Wait, raw.py logic:
+            # if score > high_thresh: true, high
+            # elif score > avg_thresh: true, low
+            # else: match=false
+            # if match=false, confidence depends on score?
+            # Actually raw.py says:
+            # if match: ...
+            # else: row["match"] = "false"
+            # And confidence is set to "high" by default for mismatches in
+            # raw.py? Let's check raw.py.
+            # "confidence": "high" is default init.
+            # If match found, it might be updated to "low".
+            # If no match found (score < avg), it remains "high" (High
+            # confidence that it is NOT a match).
+
+            self.assertEqual(df.iloc[0]["match"], "false")
+            self.assertEqual(df.iloc[0]["confidence"], "high")
 
 
 if __name__ == "__main__":
