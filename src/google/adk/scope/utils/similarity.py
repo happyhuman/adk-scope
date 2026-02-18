@@ -2,7 +2,8 @@ import logging
 from typing import Optional
 
 import numpy as np
-from jellyfish import jaro_winkler_similarity
+from jellyfish import levenshtein_distance
+from rapidfuzz import fuzz
 from scipy.optimize import linear_sum_assignment
 
 from google.adk.scope import features_pb2 as features_pb
@@ -23,18 +24,41 @@ class SimilarityScorer:
     """Calculates a similarity score between two features."""
 
     def __init__(
-        self, weights: Optional[dict[str, float]] = None, alpha: float = 0.8
+        self,
+        weights: Optional[dict[str, float]] = None,
+        alpha: float = 0.8,
+        similarity_algorithm: str = "token_set_ratio",
     ):
+        self.alpha = alpha
         self.weights = weights or DEFAULT_SIMILARITY_WEIGHTS
+        self.similarity_algorithm = similarity_algorithm
         logger.debug(
-            f"Initializing SimilarityScorer with alpha={alpha} and "
-            f"weights={self.weights}"
+            f"Initializing SimilarityScorer with alpha={alpha}, "
+            f"algorithm={similarity_algorithm}, weights={self.weights}"
         )
         assert "name" in self.weights
         assert "member_of" in self.weights
         assert "namespace" in self.weights
         assert "parameters" in self.weights
         assert "return_type" in self.weights
+        assert self.similarity_algorithm in {"levenshtein", "token_set_ratio"}
+
+    def get_similarity(self, s1: str, s2: str) -> float:
+        """Calculates similarity between two strings using the selected algorithm."""
+        if not s1 and not s2:
+            return 1.0
+        if not s1 or not s2:
+            return 0.0
+
+        if self.similarity_algorithm == "token_set_ratio":
+            # rapidfuzz.fuzz.token_set_ratio returns 0-100
+            return fuzz.token_set_ratio(s1, s2) / 100.0
+        else:
+            # Default to Levenshtein
+            dist = levenshtein_distance(s1, s2)
+            max_len = max(len(s1), len(s2))
+            return 1.0 - (dist / max_len)
+        return 1.0 - (dist / max_len)
 
     def _fuzzy_type_match(self, types1: list, types2: list) -> float:
         """Calculates a fuzzy similarity score between two lists of types."""
@@ -61,10 +85,13 @@ class SimilarityScorer:
             return 0.0
 
         if set1 == set2:
+            logger.debug(f"Exact type match: {set1}")
             return 1.0
 
         # Check the best match between any pair of types
         best_score = 0.0
+        
+        logger.debug(f"Fuzzy type match between {set1} and {set2}")
         for t1 in set1:
             for t2 in set2:
                 if t1 == t2:
@@ -90,7 +117,7 @@ class SimilarityScorer:
         self, param1: features_pb.Param, param2: features_pb.Param
     ) -> float:
         """Calculates the similarity score between two individual parameters."""
-        s_p_name = jaro_winkler_similarity(
+        s_p_name = self.get_similarity(
             param1.normalized_name, param2.normalized_name
         )
         s_p_type = self._fuzzy_type_match(
@@ -145,6 +172,10 @@ class SimilarityScorer:
             f"Matrix matched total score: {total_match_score:.4f}, "
             f"final parameter score: {score:.4f}"
         )
+        # Log parameter matches
+        for r, c in zip(row_ind, col_ind):
+             if similarity_matrix[r, c] > 0:
+                 logger.debug(f"  Matched param '{params1[r].normalized_name}' with '{params2[c].normalized_name}': {similarity_matrix[r, c]:.4f}")
         return score
 
     def _calculate_return_type_score(
@@ -208,16 +239,22 @@ class SimilarityScorer:
 
         # 2. Similarity Calculations
         scores = {
-            "name": jaro_winkler_similarity(
+            "name": self.get_similarity(
                 feature1.normalized_name, feature2.normalized_name
             ),
-            "member_of": jaro_winkler_similarity(
+            "member_of": self.get_similarity(
                 feature1.normalized_member_of, feature2.normalized_member_of
             ),
-            "namespace": jaro_winkler_similarity(
+            "namespace": self.get_similarity(
                 feature1.normalized_namespace, feature2.normalized_namespace
             ),
         }
+        logger.debug(
+            f"Comparison Details:\n"
+            f"  Name: '{feature1.normalized_name}' vs '{feature2.normalized_name}' -> {scores['name']:.4f}\n"
+            f"  MemberOf: '{feature1.normalized_member_of}' vs '{feature2.normalized_member_of}' -> {scores['member_of']:.4f}\n"
+            f"  Namespace: '{feature1.normalized_namespace}' vs '{feature2.normalized_namespace}' -> {scores['namespace']:.4f}"
+        )
         logger.debug(f"Preliminary scores: {scores}")
 
         # 3. Early Exit Check (using dynamic weights)
@@ -227,7 +264,7 @@ class SimilarityScorer:
             + scores["namespace"] * current_weights["namespace"]
         )
 
-        early_exit_threshold = 0.8 * (
+        early_exit_threshold = self.alpha * (
             current_weights["name"]
             + current_weights["member_of"]
             + current_weights["namespace"]
@@ -255,5 +292,12 @@ class SimilarityScorer:
             scores[key] * current_weights[key] for key in current_weights
         )
         logger.debug(f"Final scores including params & return: {scores}")
+        
+        # Log contributions
+        logger.debug("Score Contributions:")
+        for key in current_weights:
+            contribution = scores[key] * current_weights[key]
+            logger.debug(f"  {key}: {scores[key]:.4f} * {current_weights[key]:.4f} = {contribution:.4f}")
+            
         logger.debug(f"Final weighted similarity score: {final_score:.4f}")
         return final_score

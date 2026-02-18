@@ -13,8 +13,26 @@ from google.adk.scope import features_pb2
 from google.adk.scope.matcher import matcher
 from google.adk.scope.utils import args as adk_args
 from google.adk.scope.utils import stats
+from google.adk.scope.utils.similarity import SimilarityScorer
 
 _NEAR_MISS_THRESHOLD = 0.15
+
+# Global thresholds for match confidence
+# Keys are frozenset of language codes (e.g., frozenset(['py', 'go']))
+SIMILARITY_THRESHOLDS = {
+    frozenset(["py", "go"]): {
+        "high": 0.6,
+        "avg": 0.5,
+    },
+    frozenset(["py", "java"]): {
+        "high": 0.6,
+        "avg": 0.58,
+    },
+    frozenset(["py", "ts"]): {
+        "high": 0.7,
+        "avg": 0.55,
+    },
+}
 
 
 @dataclasses.dataclass
@@ -317,17 +335,30 @@ class ReportGenerator:
             raise ValueError(f"Unknown report type: {report_type}")
 
     def generate_raw_report(self) -> MatchResult:
-        """Generates a raw CSV report."""
+        """Generates a raw CSV report using global best-match logic.
+
+        For every feature in the base registry, finds the best matching feature
+        in the target registry with the same TYPE, regardless of module/namespace.
+        """
         base_code = _get_language_code(self.base_registry.language)
         target_code = _get_language_code(self.target_registry.language)
-        all_modules = sorted(
-            set(self.features_base.keys()) | set(self.features_target.keys())
-        )
+
         csv_header = (
-            f"{base_code}_namespace,{base_code}_member_of,{base_code}_name,"
-            f"{target_code}_namespace,{target_code}_member_of,{target_code}_name,"
-            "type,score"
+            f"py_namespace,py_member_of,py_name,"
+            f"java_namespace,java_member_of,java_name,"
+            "type,score,match,confidence"
         )
+        # Use user-requested headers if languages match expectation, otherwise dynamic
+        if base_code == "py" and target_code == "java":
+             pass # Header is already correct for the user's specific request example
+        else:
+             # Fallback to dynamic headers if not exactly py/java as requested
+             csv_header = (
+                f"{base_code}_namespace,{base_code}_member_of,{base_code}_name,"
+                f"{target_code}_namespace,{target_code}_member_of,{target_code}_name,"
+                "type,score,match,confidence"
+            )
+
         csv_lines = [csv_header]
 
         def get_feature_cols(f: features_pb2.Feature) -> tuple[str, str, str]:
@@ -347,60 +378,79 @@ class ReportGenerator:
         def esc_csv(s):
             if s is None:
                 return ""
+            s = str(s)
             if "," in s or '"' in s or "\n" in s:
                 return '"{}"'.format(s.replace('"', '""'))
             return s
 
-        for module in all_modules:
-            base_list = self.features_base.get(module, [])
-            target_list = self.features_target.get(module, [])
+        # 1. Index target features by Type for faster lookup
+        target_by_type = defaultdict(list)
+        for f in self.target_registry.features:
+            target_by_type[f.type].append(f)
 
-            solid_matches = matcher.match_features(
-                base_list, target_list, self.alpha
+        scorer = SimilarityScorer(alpha=self.alpha)
+
+        # 2. Iterate over all base features
+        for f_base in self.base_registry.features:
+            candidates = target_by_type.get(f_base.type, [])
+            
+            best_match = None
+            best_score = -1.0
+
+            if candidates:
+                # Find best match among candidates of same type
+                for f_target in candidates:
+                    score = scorer.get_similarity_score(f_base, f_target)
+                    if score > best_score:
+                        best_score = score
+                        best_match = f_target
+            
+            # 3. Write row if we have a match (even if score is 0, user might want to see it? 
+            # Actually user said "pair with maximum similarity score should be included")
+            # We will include it if it matches the best score logic. 
+            # If no candidates exist, we print empties for target.
+            
+            b_ns, b_mem, b_name = get_feature_cols(f_base)
+            f_type = matcher.get_type_display_name(f_base)
+
+            if best_match:
+                t_ns, t_mem, t_name = get_feature_cols(best_match)
+                final_score = best_score
+            else:
+                t_ns, t_mem, t_name = "", "", ""
+                final_score = 0.0
+
+            # Determine match and confidence
+            thresholds = SIMILARITY_THRESHOLDS.get(
+                frozenset([base_code, target_code])
             )
-            beta = max(0.0, self.alpha - _NEAR_MISS_THRESHOLD)
-            potential_matches = matcher.match_features(
-                base_list, target_list, beta
+
+            match_str = "false"
+            confidence_str = "low"
+
+            if thresholds:
+                if final_score > thresholds["high"]:
+                    match_str = "true"
+                    confidence_str = "high"
+                elif final_score >= thresholds["avg"]:
+                    match_str = "true"
+                    confidence_str = "low"
+                else:
+                    match_str = "false"
+                    confidence_str = "high"
+            else:
+                # Default behavior if no thresholds defined for this pair
+                # Fallback to general alpha or just say low confidence?
+                # User only provided specific pairs.
+                match_str = "true" if final_score >= self.alpha else "false"
+                confidence_str = "low"
+
+            csv_lines.append(
+                f"{esc_csv(b_ns)},{esc_csv(b_mem)},{esc_csv(b_name)},"
+                f"{esc_csv(t_ns)},{esc_csv(t_mem)},{esc_csv(t_name)},"
+                f"{esc_csv(f_type)},{final_score:.4f},"
+                f"{match_str},{confidence_str}"
             )
-
-            unmatched_base = list(base_list)
-            unmatched_target = list(target_list)
-
-            for f_base, f_target, score in solid_matches:
-                b_ns, b_mem, b_name = get_feature_cols(f_base)
-                t_ns, t_mem, t_name = get_feature_cols(f_target)
-                f_type = matcher.get_type_display_name(f_base)
-                csv_lines.append(
-                    f"{esc_csv(b_ns)},{esc_csv(b_mem)},{esc_csv(b_name)},"
-                    f"{esc_csv(t_ns)},{esc_csv(t_mem)},{esc_csv(t_name)},"
-                    f"{esc_csv(f_type)},{score:.4f}"
-                )
-
-            for f_base, f_target, score in potential_matches:
-                b_ns, b_mem, b_name = get_feature_cols(f_base)
-                t_ns, t_mem, t_name = get_feature_cols(f_target)
-                f_type = matcher.get_type_display_name(f_base)
-                csv_lines.append(
-                    f"{esc_csv(b_ns)},{esc_csv(b_mem)},{esc_csv(b_name)},"
-                    f"{esc_csv(t_ns)},{esc_csv(t_mem)},{esc_csv(t_name)},"
-                    f"{esc_csv(f_type)},{score:.4f}"
-                )
-
-            for f_base in unmatched_base:
-                b_ns, b_mem, b_name = get_feature_cols(f_base)
-                f_type = matcher.get_type_display_name(f_base)
-                csv_lines.append(
-                    f"{esc_csv(b_ns)},{esc_csv(b_mem)},{esc_csv(b_name)},"
-                    f",,,{esc_csv(f_type)},0.0000"
-                )
-
-            for f_target in unmatched_target:
-                t_ns, t_mem, t_name = get_feature_cols(f_target)
-                f_type = matcher.get_type_display_name(f_target)
-                csv_lines.append(
-                    f",,,{esc_csv(t_ns)},{esc_csv(t_mem)},"
-                    f"{esc_csv(t_name)},{esc_csv(f_type)},0.0000"
-                )
 
         return MatchResult(
             master_content="\n".join(csv_lines),

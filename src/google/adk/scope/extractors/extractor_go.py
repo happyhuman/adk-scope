@@ -70,6 +70,11 @@ def extract_features(
         return []
 
     processor = NodeProcessor()
+    
+    # Pre-process structs to build the definition map
+    # We need to re-query or process struct nodes specifically.
+    # To keep it simple, let's just use the query we have.
+    pass
     features = []
 
     # REVISED QUERY: Matches the declaration nodes.
@@ -85,20 +90,39 @@ def extract_features(
             )
           )
         )
+        (type_declaration
+          (type_spec
+            name: (type_identifier) @struct_name
+            type: (struct_type) @struct_body
+          )
+        )
     """
     query = Query(GO_LANGUAGE, query_text)
     cursor = QueryCursor(query)
     captures = cursor.captures(root_node)
 
     all_nodes = []
+    struct_nodes = []
     # We only want to process the actual function/method nodes, not the interface names
     # which are captured just for context by the processor (via tree traversal).
     for capture_name, node_list in captures.items():
         if capture_name in ("func", "method", "interface_method"):
             all_nodes.extend(node_list)
+        elif capture_name == "struct_body":
+            # We need to associate the struct body with its name.
+            # The query captures @struct_name and @struct_body separately but in order.
+            # However, 'captures' is a dict of lists, so order might be tricky if we rely on index alignment across lists.
+            # Better strategy: Capture the parent type_spec and process it?
+            # Or iterate the captures list (which we can't easily do with the dict output).
+            # Let's rely on NodeProcessor to find the name from the struct_body node's parent.
+            struct_nodes.extend(node_list)
 
     # Log results for debugging
     logger.debug("Found %d potential nodes in %s", len(all_nodes), file_path)
+
+    # Build struct definitions map first
+    for node in struct_nodes:
+        processor.register_struct(node)
 
     for node in all_nodes:
         # Prevent filtering out abstract interface methods which have no body

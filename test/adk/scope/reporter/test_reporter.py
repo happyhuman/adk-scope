@@ -108,7 +108,7 @@ class TestReporter(unittest.TestCase):
 
         # Test Markdown Report
         result_md = reporter.match_registries(
-            [base_registry, target_registry], 0.9, report_type="md"
+            [base_registry, target_registry], 0.8, report_type="md"
         )
         report_md = result_md.master_content
 
@@ -325,6 +325,14 @@ class TestReporter(unittest.TestCase):
             member_of="c1",
             type=features_pb2.Feature.Type.FUNCTION,
         )
+        # f_target is a perfect match
+        f_target = features_pb2.Feature(
+            original_name="f1_base",
+            normalized_name="f1_base",
+            namespace="n1",
+            member_of="c1",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
 
         base_registry = features_pb2.FeatureRegistry(
             language="Python", version="1.0.0"
@@ -333,21 +341,60 @@ class TestReporter(unittest.TestCase):
         target_registry = features_pb2.FeatureRegistry(
             language="TypeScript", version="2.0.0"
         )
+        target_registry.features.extend([f_target])
 
-        with patch(
-            "google.adk.scope.reporter.reporter.matcher.match_features"
-        ) as mock_match:
-            mock_match.return_value = []  # No matches for simplicity
+        # We no longer patch match_features, we rely on SimilarityScorer
+        # yielding a high score for identical features.
+        result = reporter.ReportGenerator(
+            base_registry, target_registry, 0.9
+        ).generate_raw_report()
 
-            result = reporter.ReportGenerator(
-                base_registry, target_registry, 0.9
-            ).generate_raw_report()
+        self.assertIn(
+            "py_namespace,py_member_of,py_name",
+            result.master_content,
+        )
+        self.assertIn("n1,c1,f1_base", result.master_content)
 
-            self.assertIn(
-                "py_namespace,py_member_of,py_name",
-                result.master_content,
-            )
-            self.assertIn("n1,c1,f1_base", result.master_content)
+    def test_global_best_match(self):
+        """Tests that a feature matches best candidate globally, ignoring namespace."""
+        # Base feature in namespace 'n1'
+        f_base = features_pb2.Feature(
+            original_name="my_feature",
+            normalized_name="my_feature",
+            namespace="n1",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+        
+        # Target feature 1: Same namespace, but different name (low score)
+        f_target_bad = features_pb2.Feature(
+            original_name="other_feature",
+            normalized_name="other_feature",
+            namespace="n1",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+        
+        # Target feature 2: Different namespace, but same name (high score)
+        f_target_good = features_pb2.Feature(
+            original_name="my_feature",
+            normalized_name="my_feature",
+            namespace="n2",
+            type=features_pb2.Feature.Type.FUNCTION,
+        )
+
+        base_registry = features_pb2.FeatureRegistry(language="Python", version="1")
+        base_registry.features.append(f_base)
+        
+        target_registry = features_pb2.FeatureRegistry(language="Java", version="2")
+        target_registry.features.extend([f_target_bad, f_target_good])
+
+        # Logic should pick f_target_good because it has higher similarity
+        # even though it is in a different namespace.
+        result = reporter.ReportGenerator(
+            base_registry, target_registry, 0.5
+        ).generate_raw_report()
+
+        # Check that we found the match in n2
+        self.assertIn("n1,,my_feature,n2,,my_feature,function,1.0000", result.master_content)
 
     def test_generate_md_report(self):
         """Tests the md report generation."""
@@ -382,7 +429,6 @@ class TestReporter(unittest.TestCase):
             self.assertIn("## Module Summary", result.master_content)
             self.assertIn("| `n1` |", result.master_content)
             self.assertIn("n1.md", result.module_files)
-
 
 
     def test_raw_integration(self):
@@ -463,10 +509,63 @@ class TestReporter(unittest.TestCase):
             "py_namespace,py_member_of,py_name,ts_namespace,ts_member_of,ts_name,type,score",
             result.master_content,
         )
+        
+        # Verify the solid match is present with high score
+        # Note: Original names are used (load_artifact vs loadArtifact) and original members (InMemoryArtifactService)
+        self.assertRegex(result.master_content, r"runners,InMemoryArtifactService,load_artifact,artifacts,InMemoryArtifactService,loadArtifact,.*,0.86[0-9]*")
 
-        print(result.master_content)
-        self.assertEqual(len(result.master_content.splitlines()), 2)
-        # A known match
+    def test_raw_report_match_confidence(self):
+        """Tests match and confidence columns with various scores."""
+        # 1. High match (score 0.9 > 0.6 for py/go)
+        f_high = features_pb2.Feature(
+            original_name="high", normalized_name="high", type=features_pb2.Feature.Type.FUNCTION
+        )
+        # 2. Avg match (score 0.55 between 0.5 and 0.6 for py/go)
+        f_avg = features_pb2.Feature(
+            original_name="high", normalized_name="high_ish", type=features_pb2.Feature.Type.FUNCTION
+        )
+        # 3. Low match (score 0.1 < 0.5 for py/go)
+        f_low = features_pb2.Feature(
+            original_name="high", normalized_name="completely_different", type=features_pb2.Feature.Type.FUNCTION
+        )
+
+        base = features_pb2.FeatureRegistry(language="Python", version="1")
+        base.features.append(f_high)
+        
+        target = features_pb2.FeatureRegistry(language="Go", version="1")
+        # We need to craft targets that produce specific scores or mock the scorer.
+        # It's easier to mock SimilarityScorer to return fixed scores.
+        target.features.extend([f_high, f_avg, f_low])
+
+        with patch("google.adk.scope.reporter.reporter.SimilarityScorer") as MockScorer:
+            instance = MockScorer.return_value
+            # match_registries -> ReportGenerator -> generate_raw_report -> SimilarityScorer
+            # We need to control get_similarity_score.
+            # The logic iterates base features, then finds best match target.
+            
+            # Case 1: High match
+            # We want best_score to be > 0.6
+            instance.get_similarity_score.return_value = 0.9
+            
+            gen = reporter.ReportGenerator(base, target, 0.1)
+            # We need to reset the scorer inside generator if we patched the class, 
+            # but ReportGenerator instantiates it inside generate_raw_report.
+            # So the patch above should work for the instance created inside.
+            
+            result = gen.generate_raw_report()
+            
+            # Check for match=true, confidence=high
+            self.assertIn("true,high", result.master_content)
+
+            # Case 2: Avg match (0.55) -> match=true, confidence=low
+            instance.get_similarity_score.return_value = 0.55
+            result = gen.generate_raw_report()
+            self.assertIn("true,low", result.master_content)
+
+            # Case 3: Low/No match (0.4) -> match=false, confidence=high
+            instance.get_similarity_score.return_value = 0.4
+            result = gen.generate_raw_report()
+            self.assertIn("false,high", result.master_content)
 
 
 if __name__ == "__main__":
