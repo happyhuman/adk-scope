@@ -1,7 +1,8 @@
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
-from collections import defaultdict
-from typing import Optional, Dict, Any, List, Tuple
+
 from google.adk.scope import features_pb2
 from google.adk.scope.utils.similarity import SimilarityScorer
 

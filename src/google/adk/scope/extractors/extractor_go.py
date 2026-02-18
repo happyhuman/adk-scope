@@ -70,7 +70,7 @@ def extract_features(
         return []
 
     processor = NodeProcessor()
-    
+
     # Pre-process structs to build the definition map
     # We need to re-query or process struct nodes specifically.
     # To keep it simple, let's just use the query we have.
@@ -103,18 +103,23 @@ def extract_features(
 
     all_nodes = []
     struct_nodes = []
-    # We only want to process the actual function/method nodes, not the interface names
-    # which are captured just for context by the processor (via tree traversal).
+    # We only want to process the actual function/method nodes, not the
+    # interface names which are captured just for context by the processor
+    # (via tree traversal).
     for capture_name, node_list in captures.items():
         if capture_name in ("func", "method", "interface_method"):
             all_nodes.extend(node_list)
         elif capture_name == "struct_body":
             # We need to associate the struct body with its name.
-            # The query captures @struct_name and @struct_body separately but in order.
-            # However, 'captures' is a dict of lists, so order might be tricky if we rely on index alignment across lists.
+            # The query captures @struct_name and @struct_body separately but
+            # in order.
+            # However, 'captures' is a dict of lists, so order might be tricky
+            # if we rely on index alignment across lists.
             # Better strategy: Capture the parent type_spec and process it?
-            # Or iterate the captures list (which we can't easily do with the dict output).
-            # Let's rely on NodeProcessor to find the name from the struct_body node's parent.
+            # Or iterate the captures list (which we can't easily do with the
+            # dict output).
+            # Let's rely on NodeProcessor to find the name from the struct_body
+            # node's parent.
             struct_nodes.extend(node_list)
 
     # Log results for debugging
@@ -143,8 +148,8 @@ def extract_features(
                     ),
                     None,
                 )
-                # If there is no statement list, or it has 1 or fewer statements,
-                # consider it simple.
+                # If there is no statement list, or it has 1 or fewer
+                # statements, consider it simple.
                 if stmt_list is None or stmt_list.named_child_count <= 1:
                     # Also check physical line span to prevent skipping large
                     # single-statement functions (e.g. methods returning a large
@@ -159,7 +164,7 @@ def extract_features(
                             logger.debug(
                                 "Skipping simple function: %s (span: %d lines)",
                                 function_name_node.text.decode("utf8"),
-                                line_span
+                                line_span,
                             )
                         continue
 
@@ -211,7 +216,7 @@ def get_version(repo_root: pathlib.Path) -> str:
                         return parts[1]
         except Exception as e:
             logger.warning("Failed to read version.go file: %s", e)
-    
+
     # Fallback to reading go.mod module path if version isn't found
     go_mod_path = repo_root / "go.mod"
     if go_mod_path.exists():
@@ -222,5 +227,5 @@ def get_version(repo_root: pathlib.Path) -> str:
                     return line.split()[1]
         except Exception as e:
             logger.warning("Failed to read go.mod file: %s", e)
-    
+
     return ""

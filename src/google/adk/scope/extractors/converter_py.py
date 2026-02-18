@@ -54,10 +54,14 @@ class NodeProcessor:
 
         # 2. Context
         member_of, normalized_member_of = self._extract_member_of(node)
-        
+
         # If the member belongs to a private class, skip it
         if member_of and member_of.startswith("_"):
-            logger.debug("Skipping method %s of private class %s", original_name, member_of)
+            logger.debug(
+                "Skipping method %s of private class %s",
+                original_name,
+                member_of,
+            )
             return None
 
         feature_type = self._determine_type(

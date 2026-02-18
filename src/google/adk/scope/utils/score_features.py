@@ -1,4 +1,3 @@
-
 import argparse
 import logging
 import sys
@@ -9,10 +8,17 @@ from google.protobuf import text_format
 from google.adk.scope import features_pb2
 from google.adk.scope.utils.similarity import SimilarityScorer
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Calculate similarity score between two features.")
-    parser.add_argument("feature1", type=Path, help="Path to first feature file (text proto).")
-    parser.add_argument("feature2", type=Path, help="Path to second feature file (text proto).")
+    parser = argparse.ArgumentParser(
+        description="Calculate similarity score between two features."
+    )
+    parser.add_argument(
+        "feature1", type=Path, help="Path to first feature file (text proto)."
+    )
+    parser.add_argument(
+        "feature2", type=Path, help="Path to second feature file (text proto)."
+    )
 
     args = parser.parse_args()
 
@@ -31,7 +37,7 @@ def main():
 
         scorer = SimilarityScorer()
         score = scorer.get_similarity_score(f1, f2)
-        
+
         print("-" * 40)
         print(f"Similarity Score: {score:.4f}")
         print("-" * 40)
@@ -39,6 +45,7 @@ def main():
     except Exception as e:
         logging.error(f"Error: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

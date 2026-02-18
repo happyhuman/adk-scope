@@ -1,19 +1,14 @@
-
 import argparse
 import logging
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
 from google.protobuf import text_format
-import pandas as pd
 
 from google.adk.scope import features_pb2
-from google.adk.scope.reporter import raw, markdown
+from google.adk.scope.reporter import markdown, raw
 from google.adk.scope.utils import args as adk_args
-from google.adk.scope.utils.similarity import SimilarityScorer
-
 
 
 def _read_feature_registry(file_path: str) -> features_pb2.FeatureRegistry:
@@ -32,7 +27,7 @@ def generate_markdown_raw_reports(
     """Matches features and generates reports."""
     # New unified flow for standard reports
     generator = raw.RawReportGenerator(registries[0], registries[1])
-    
+
     # Generate DataFrame (and CSV if path provided)
     csv_path = None
     if output_path:
@@ -41,11 +36,13 @@ def generate_markdown_raw_reports(
         stem = output_path.stem
         parent = output_path.parent
         csv_path = str(parent / f"{stem}.csv")
-        
+
     df = generator.generate(output_path=csv_path)
-    
+
     # Generate Markdown Report from DataFrame
-    reporter = markdown.MarkdownReportGenerator(registries[0], registries[1], df)
+    reporter = markdown.MarkdownReportGenerator(
+        registries[0], registries[1], df
+    )
     result = reporter.generate()
     if result.module_reports:
         modules_dir_name = f"{output_path.stem}_modules"
@@ -57,7 +54,9 @@ def generate_markdown_raw_reports(
             # Replace placeholder for master report link
             # The link is relative from module dir to master report
             # We are in {stem}_modules/, so we need to go up one level.
-            final_content = content.replace("{master_report}", f"../{output_path.name}")
+            final_content = content.replace(
+                "{master_report}", f"../{output_path.name}"
+            )
             (modules_dir / filename).write_text(final_content)
 
         # Replace placeholder in Master Report
@@ -72,16 +71,19 @@ def generate_markdown_raw_reports(
     try:
         output_path.write_text(master_report)
         logging.info(f"Successfully wrote match report to {output_path}")
-        # Note: CSV writing is logged inside RawReportGenerator or we should log it here
-        # Actually RawReportGenerator doesn't log, so we might want to Add a log here if we knew it matched
+        # Note: CSV writing is logged inside RawReportGenerator or we should
+        # log it here. Actually RawReportGenerator doesn't log, so we might
+        # want to Add a log here if we knew it matched
         stem = output_path.stem
         csv_path = output_path.parent / f"{stem}.csv"
         if csv_path.exists():
-             logging.info(f"Successfully wrote raw match report to {csv_path}")
+            logging.info(f"Successfully wrote raw match report to {csv_path}")
+
+        return result
 
     except Exception as e:
         logging.error(f"Error writing report to {output_path}: {e}")
-        sys.exit(1)    
+        sys.exit(1)
 
 
 def main():
@@ -107,7 +109,10 @@ def main():
     parser.add_argument(
         "--output",
         required=True,
-        help="Path to save the Markdown report. Corresponding CSV will be saved with same stem.",
+        help=(
+            "Path to save the Markdown report. Corresponding CSV will be "
+            "saved with same stem."
+        ),
     )
     parser.add_argument(
         "--report-type",
@@ -126,9 +131,11 @@ def main():
         elif args.base and args.target:
             registry_paths.extend([args.base, args.target])
         else:
-            logging.error("Must provide either --registries or both --base and --target")
+            logging.error(
+                "Must provide either --registries or both --base and --target"
+            )
             sys.exit(1)
-            
+
         if len(registry_paths) < 2:
             logging.error("Must provide at least 2 registries to compare.")
             sys.exit(1)
@@ -142,9 +149,7 @@ def main():
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     generate_markdown_raw_reports(
-        registries, 
-        args.report_type, 
-        output_path=output_path
+        registries, args.report_type, output_path=output_path
     )
 
 

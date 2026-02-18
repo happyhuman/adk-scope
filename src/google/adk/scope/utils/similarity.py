@@ -3,7 +3,6 @@ from typing import Optional
 
 import numpy as np
 from jellyfish import levenshtein_distance
-
 from scipy.optimize import linear_sum_assignment
 
 from google.adk.scope import features_pb2 as features_pb
@@ -29,8 +28,7 @@ class SimilarityScorer:
     ):
         self.weights = weights or DEFAULT_SIMILARITY_WEIGHTS
         logger.debug(
-            f"Initializing SimilarityScorer with "
-            f"weights={self.weights}"
+            f"Initializing SimilarityScorer with " f"weights={self.weights}"
         )
         assert "name" in self.weights
         assert "member_of" in self.weights
@@ -39,7 +37,8 @@ class SimilarityScorer:
         assert "return_type" in self.weights
 
     def get_similarity(self, s1: str, s2: str) -> float:
-        """Calculates similarity between two strings using the selected algorithm."""
+        """Calculates similarity between two strings using the selected
+        algorithm."""
         if not s1 and not s2:
             return 1.0
         if not s1 or not s2:
@@ -48,7 +47,6 @@ class SimilarityScorer:
         # Default to Levenshtein
         dist = levenshtein_distance(s1, s2)
         max_len = max(len(s1), len(s2))
-        return 1.0 - (dist / max_len)
         return 1.0 - (dist / max_len)
 
     def _fuzzy_type_match(self, types1: list, types2: list) -> float:
@@ -81,7 +79,7 @@ class SimilarityScorer:
 
         # Check the best match between any pair of types
         best_score = 0.0
-        
+
         logger.debug(f"Fuzzy type match between {set1} and {set2}")
         for t1 in set1:
             for t2 in set2:
@@ -165,8 +163,12 @@ class SimilarityScorer:
         )
         # Log parameter matches
         for r, c in zip(row_ind, col_ind):
-             if similarity_matrix[r, c] > 0:
-                 logger.debug(f"  Matched param '{params1[r].normalized_name}' with '{params2[c].normalized_name}': {similarity_matrix[r, c]:.4f}")
+            if similarity_matrix[r, c] > 0:
+                logger.debug(
+                    f"  Matched param '{params1[r].normalized_name}' with "
+                    f"'{params2[c].normalized_name}': "
+                    f"{similarity_matrix[r, c]:.4f}"
+                )
         return score
 
     def _calculate_return_type_score(
@@ -242,9 +244,12 @@ class SimilarityScorer:
         }
         logger.debug(
             f"Comparison Details:\n"
-            f"  Name: '{feature1.normalized_name}' vs '{feature2.normalized_name}' -> {scores['name']:.4f}\n"
-            f"  MemberOf: '{feature1.normalized_member_of}' vs '{feature2.normalized_member_of}' -> {scores['member_of']:.4f}\n"
-            f"  Namespace: '{feature1.normalized_namespace}' vs '{feature2.normalized_namespace}' -> {scores['namespace']:.4f}"
+            f"  Name: '{feature1.normalized_name}' vs "
+            f"'{feature2.normalized_name}' -> {scores['name']:.4f}\n"
+            f"  MemberOf: '{feature1.normalized_member_of}' vs "
+            f"'{feature2.normalized_member_of}' -> {scores['member_of']:.4f}\n"
+            f"  Namespace: '{feature1.normalized_namespace}' vs "
+            f"'{feature2.normalized_namespace}' -> {scores['namespace']:.4f}"
         )
         logger.debug(f"Preliminary scores: {scores}")
 
@@ -283,12 +288,15 @@ class SimilarityScorer:
             scores[key] * current_weights[key] for key in current_weights
         )
         logger.debug(f"Final scores including params & return: {scores}")
-        
+
         # Log contributions
         logger.debug("Score Contributions:")
         for key in current_weights:
             contribution = scores[key] * current_weights[key]
-            logger.debug(f"  {key}: {scores[key]:.4f} * {current_weights[key]:.4f} = {contribution:.4f}")
-            
+            logger.debug(
+                f"  {key}: {scores[key]:.4f} * {current_weights[key]:.4f} = "
+                f"{contribution:.4f}"
+            )
+
         logger.debug(f"Final weighted similarity score: {final_score:.4f}")
         return final_score
