@@ -10,7 +10,7 @@ from google.adk.scope.utils.similarity import SimilarityScorer
 # Global thresholds for match confidence
 SIMILARITY_THRESHOLDS = {
     frozenset(["python", "go"]): {"high": 0.75, "avg": 0.70},
-    frozenset(["python", "java"]): {"high": 0.6, "avg": 0.58},
+    frozenset(["python", "java"]): {"high": 0.8, "avg": 0.75},
     frozenset(["python", "typescript"]): {"high": 0.7, "avg": 0.55},
 }
 
@@ -69,53 +69,81 @@ class RawReportGenerator:
             row = self._create_row_data(f_base, best_match, best_score)
             rows.append(row)
 
-        # Process Target-Only Features
-        for f_target in self.target_registry.features:
-            if id(f_target) not in matched_target_ids:
-                row = self._create_row_data(None, f_target, 0.0)
-                rows.append(row)
+    def generate(self, output_path: Optional[str] = None) -> pd.DataFrame:
+        """Generates the raw report DataFrame using global greedy assignment."""
+        base_features = self.base_registry.features
+        target_features = self.target_registry.features
+        thresholds = self.thresholds
 
-        df = self._create_dataframe(rows)
+        # 1. Collect all candidate matches
+        candidates = []
+        for f_base in base_features:
+            # Optimization: Only compare with features of compatible types to reduce N*M complexity
+            # But earlier we decided to allow cross-type.
+            
+            for f_target in target_features:
+                if "LlmAgent" in str(f_base):
+                     print(f"DEBUG_RAW_BASE: name='{f_base.name}', orig='{f_base.original_name}', norm='{f_base.normalized_name}'")
+                score, details = self.scorer.get_similarity_score(f_base, f_target)
+                if score > 0.1:  # optimization: ignore very low scores
+                    candidates.append((score, f_base, f_target, details))
+
+        # 2. Sort by score descending
+        candidates.sort(key=lambda x: x[0], reverse=True)
+
+        # 3. Greedy Assignment
+        used_base = set()
+        used_target = set()
+        matches = []
+        
+        for score, f_base, f_target, details in candidates:
+            if id(f_base) in used_base or id(f_target) in used_target:
+                continue
+            
+            # This is a valid unique match
+            used_base.add(id(f_base))
+            used_target.add(id(f_target))
+            
+            # Determine validation status
+            is_valid = score >= thresholds["avg"]
+            confidence = "high" if score >= thresholds["high"] else "low"
+            
+            matches.append(
+                self._create_match_row(
+                    f_base, f_target, score, is_valid, confidence
+                )
+            )
+
+        # 4. Add unmatched base features
+        for f_base in base_features:
+            if id(f_base) not in used_base:
+                matches.append(
+                    self._create_match_row(
+                        f_base, None, 0.0, False, "low"
+                    )
+                )
+
+        # 5. Sort output by base feature name for readability
+        matches.sort(key=lambda x: (
+            x.get(f"{self.base_code}_module", ""),
+            x.get(f"{self.base_code}_container", ""),
+            x.get(f"{self.base_code}_name", "")
+        ))
+        
+        df = self._create_dataframe(matches)
 
         if output_path:
             self._save_csv(df, output_path)
 
         return df
 
-    def _find_best_match(
-        self, f_base: features_pb2.Feature
-    ) -> Tuple[Optional[features_pb2.Feature], float]:
-        """Finds the best matching feature in the target registry."""
-        candidates = self.target_by_type.get(f_base.type, [])[:]
-        
-        # Allow cross-type matching for specific pairs
-        FeatureType = features_pb2.Feature.Type
-        if f_base.type == FeatureType.INSTANCE_METHOD:
-            # INSTANCE_METHOD can also match FUNCTION (e.g. __call__ -> func)
-            candidates.extend(self.target_by_type.get(FeatureType.FUNCTION, []))
-        elif f_base.type == FeatureType.FUNCTION:
-            # FUNCTION can also match INSTANCE_METHOD
-            candidates.extend(self.target_by_type.get(FeatureType.INSTANCE_METHOD, []))
-
-        if not candidates:
-            return None, 0.0
-
-        best_match = None
-        best_score = -1.0
-
-        for f_target in candidates:
-            score, _ = self.scorer.get_similarity_score(f_base, f_target)
-            if score > best_score:
-                best_score = score
-                best_match = f_target
-
-        return best_match, best_score
-
-    def _create_row_data(
+    def _create_match_row(
         self,
-        f_base: Optional[features_pb2.Feature],
+        f_base: features_pb2.Feature,
         f_target: Optional[features_pb2.Feature],
         score: float,
+        is_valid: bool = False,
+        confidence: str = "low",
     ) -> Dict[str, Any]:
         """Constructs a dictionary representing a single row in the report."""
         row: Dict[str, Any] = {}
@@ -142,9 +170,8 @@ class RawReportGenerator:
         row["score"] = score
 
         # Match status
-        match_str, confidence_str = self._determine_match_status(score)
-        row["match"] = match_str
-        row["confidence"] = confidence_str
+        row["match"] = str(is_valid).lower()
+        row["confidence"] = confidence
 
         return row
 

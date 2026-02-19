@@ -10,6 +10,9 @@ from google.protobuf import text_format
 from google.adk.scope import features_pb2
 from google.adk.scope.reporter import markdown, matrix, raw
 from google.adk.scope.utils import args as adk_args
+import google.adk.scope.utils.similarity
+print(f"DEBUG: similarity file: {google.adk.scope.utils.similarity.__file__}", file=sys.stderr)
+print(f"DEBUG: sys.path: {sys.path}", file=sys.stderr)
 
 
 def _read_feature_registry(file_path: str) -> features_pb2.FeatureRegistry:

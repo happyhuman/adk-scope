@@ -234,8 +234,13 @@ class SimilarityScorer:
 
         FeatureType = features_pb.Feature.Type
         if t1 == FeatureType.CONSTRUCTOR and t2 == FeatureType.CONSTRUCTOR:
-            current_weights["member_of"] += current_weights["name"]
+            # For constructors:
+            # 1. Ignore Name (Python __init__ vs Go New)
+            # 2. Ignore Return Type (Python None vs Go *T)
+            # 3. Boost MemberOf (Class Match is the most important signal)
+            current_weights["member_of"] += current_weights["name"] + current_weights["return_type"]
             current_weights["name"] = 0.0
+            current_weights["return_type"] = 0.0
             logger.debug(
                 "Both CONSTRUCTOR. " f"Adjusted weights: {current_weights}"
             )

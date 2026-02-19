@@ -267,12 +267,9 @@ class MarkdownReportGenerator:
             summary_table,
             "## Feature Details",
             "",
-            f"| Module ({self.base_name}) | Container ({self.base_name}) | "
-            f"Name ({self.base_name}) | Module ({self.target_name}) | "
-            f"Container ({self.target_name}) | Name ({self.target_name}) | "
+            f"| Type | Feature ({self.base_name}) | Feature ({self.target_name}) | "
             "Score | Match | Confidence |",
-            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: | "
-            ":---: |",
+            "| :--- | :--- | :--- | :--- | :---: | :---: |",
         ]
 
         # Sort by score desc, then name
@@ -304,9 +301,21 @@ class MarkdownReportGenerator:
             if conf_display == "High":
                 conf_display = "**High**"
 
+            feat_type = row.get("type", "unknown")
+
+            # Helper to format path
+            def fmt_path(ns, mem, name):
+                parts = [ns, mem, name]
+                return "/".join([p for p in parts if p and p != "___"])
+
+            b_path = fmt_path(b_ns, b_mem, b_name)
+            t_path = fmt_path(t_ns, t_mem, t_name)
+
+            if not t_path:
+                t_path = "*(None)*"
+
             lines.append(
-                f"| `{b_ns}` | `{b_mem}` | `{b_name}` | "
-                f"`{t_ns}` | `{t_mem}` | `{t_name}` | "
+                f"| `{feat_type}` | `{b_path}` | `{t_path}` | "
                 f"{score:.4f} | {match_icon} | {conf_display} |"
             )
 
