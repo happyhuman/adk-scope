@@ -180,8 +180,7 @@ class NodeProcessor:
         return "\n".join(comments)
 
     def _extract_interface_name(self, node: Node) -> str:
-        """Walk up the AST from a method_spec to find the interface type name.
-        """
+        """Walk up the AST from a method_spec to find the interface type name."""
         parent = node.parent
         while parent:
             if parent.type == "type_spec":

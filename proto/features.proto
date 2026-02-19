@@ -71,5 +71,6 @@ message Feature {
 message FeatureRegistry {
   string language = 1;                          // ADK language (e.g., "GO").        
   string version = 2;                           // ADK version (e.g., "1.4.2").
-  repeated Feature features = 3; 
+  string commit_id = 3;                         // Last commit id of the repository. 
+  repeated Feature features = 4;
 }

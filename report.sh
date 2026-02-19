@@ -4,7 +4,7 @@
 set -e
 
 # Default values
-REPORT_TYPE="md"
+
 VERBOSE=""
 COMMON=""
 
@@ -31,10 +31,7 @@ while [[ "$#" -gt 0 ]]; do
             OUTPUT_DIR="$2"
             shift 2
             ;;
-        --report-type)
-            REPORT_TYPE="$2"
-            shift 2
-            ;;
+
         -v|--verbose)
             VERBOSE="--verbose"
             shift
@@ -83,9 +80,10 @@ EXTENSION="md"
 
 # Standard 2-way report
 OUTPUT_FILENAME="${LANG_CODES[0]}_${LANG_CODES[1]}.${EXTENSION}"
-# Ensure report type is 'md' for standard logic so unified generator runs
-if [ "$REPORT_TYPE" == "raw" ]; then
-    REPORT_TYPE="md"
+
+# Check if we are running in matrix mode (CSV inputs)
+if [[ "${REGISTRIES[0]}" == *.csv ]]; then
+    OUTPUT_FILENAME="matrix_report.md"
 fi
 
 FULL_OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
@@ -100,6 +98,7 @@ export PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH}"
 python3 "${SCRIPT_DIR}/src/google/adk/scope/reporter/reporter.py" \
     --registries "${REGISTRIES[@]}" \
     --output "${FULL_OUTPUT_PATH}" \
-    --report-type "${REPORT_TYPE}" \
+
     ${COMMON} \
     ${VERBOSE}
+

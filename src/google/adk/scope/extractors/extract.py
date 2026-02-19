@@ -1,4 +1,5 @@
 import logging
+import subprocess
 import sys
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from google.adk.scope.extractors import (
     extractor_ts,
 )
 from google.adk.scope.features_pb2 import FeatureRegistry
+from google.adk.scope.utils import string
 from google.adk.scope.utils.args import parse_args
 
 logging.basicConfig(
@@ -77,6 +79,21 @@ def get_search_dir(input_path: Path, language: str) -> Path:
         input_path,
     )
     return input_path
+
+
+def get_latest_commit_id(repo_path: Path) -> str:
+    """Gets the latest commit ID from a git repository."""
+    try:
+        # Run 'git rev-parse HEAD' to get the full SHA
+        commit_id = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(repo_path),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        return commit_id
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return ""
 
 
 def main():
@@ -210,10 +227,13 @@ def main():
         repo_root if repo_root else Path(".")
     )
 
+    commit_id = get_latest_commit_id(repo_root if repo_root else Path("."))
+
     registry = FeatureRegistry(
         language=args.language.upper(),
         version=version,
         features=all_features,
+        commit_id=commit_id,
     )
 
     output_dir = args.output
@@ -223,15 +243,7 @@ def main():
         logger.error("Failed to create output directory %s: %s", output_dir, e)
         sys.exit(1)
 
-    prefix = (
-        "py"
-        if args.language in {"python", "py"}
-        else (
-            "ts"
-            if args.language in {"typescript", "ts"}
-            else "java" if args.language == "java" else "go"
-        )
-    )
+    prefix = string.get_language_name(args.language).lower()
     base_filename = f"{prefix}"
 
     if _JSON_OUTPUT:

@@ -111,7 +111,6 @@ class TestReporter(unittest.TestCase):
             output_path = Path(temp_dir) / "report.md"
             result_md = reporter.generate_markdown_raw_reports(
                 [base_registry, target_registry],
-                report_type="md",
                 output_path=output_path,
             )
             report_md = result_md.main_report_content
@@ -119,6 +118,11 @@ class TestReporter(unittest.TestCase):
             # 1. Verify Master Report Structure
             self.assertIn("# Feature Matching Parity Report", report_md)
             self.assertIn("## Summary", report_md)
+            # Check for new column
+            self.assertIn(
+                "| Role | Language | Version | Last Commit |", report_md
+            )
+
             # Check for High/Low confidence summaries
             self.assertIn(
                 "| **✅ High Confidence Matches** | **1** |", report_md
@@ -129,7 +133,7 @@ class TestReporter(unittest.TestCase):
 
             # Check for module entry in master summary
             self.assertIn(
-                "| Module | Features (Python) | Score | Status | Details |",
+                "| Module | Features (Python) | Overlap | Details |",
                 report_md,
             )
             self.assertIn("| `google.adk.events` |", report_md)

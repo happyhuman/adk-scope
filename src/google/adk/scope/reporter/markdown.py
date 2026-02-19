@@ -5,42 +5,13 @@ from typing import Dict
 import pandas as pd
 
 from google.adk.scope import features_pb2
+from google.adk.scope.utils import reporting, string
 
 
 @dataclasses.dataclass
 class MarkdownReport:
     main_report_content: str
     module_reports: Dict[str, str]  # filename -> content
-
-
-def _get_language_code(language_name: str) -> str:
-    """Returns a short code for the language."""
-    name = language_name.upper()
-    if name in {"PYTHON", "PY"}:
-        return "py"
-    elif name in {"TYPESCRIPT", "TS"}:
-        return "ts"
-    elif name == "JAVA":
-        return "java"
-    elif name in {"GOLANG", "GO"}:
-        return "go"
-    else:
-        return name.lower()
-
-
-def _get_language_name(language_name: str) -> str:
-    """Returns a properly capitalized display name for the language."""
-    name = language_name.upper()
-    if name in {"PYTHON", "PY"}:
-        return "Python"
-    elif name in {"TYPESCRIPT", "TS"}:
-        return "TypeScript"
-    elif name == "JAVA":
-        return "Java"
-    elif name in {"GOLANG", "GO"}:
-        return "Go"
-    else:
-        return language_name.title()
 
 
 class MarkdownReportGenerator:
@@ -54,10 +25,10 @@ class MarkdownReportGenerator:
         self.target_registry = target_registry
         self.df = df
 
-        self.base_code = _get_language_code(base_registry.language)
-        self.target_code = _get_language_code(target_registry.language)
-        self.base_name = _get_language_name(base_registry.language)
-        self.target_name = _get_language_name(target_registry.language)
+        self.base_name = string.get_language_name(base_registry.language)
+        self.target_name = string.get_language_name(target_registry.language)
+        self.base_code = self.base_name.lower()
+        self.target_code = self.target_name.lower()
 
     def generate(self) -> MarkdownReport:
         """Generates a Markdown parity report from the DataFrame."""
@@ -67,15 +38,17 @@ class MarkdownReportGenerator:
                 "# Feature Matching Parity Report",
                 f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 "",
-                "| Role | Language | Version |",
-                "| :--- | :--- | :--- |",
+                "| Role | Language | Version | Last Commit |",
+                "| :--- | :--- | :--- | :--- |",
                 (
                     f"| **Base** | {self.base_registry.language} |"
                     f" {self.base_registry.version} |"
+                    f" {self.base_registry.commit_id or 'N/A'} |"
                 ),
                 (
                     f"| **Target** | {self.target_registry.language} |"
                     f" {self.target_registry.version} |"
+                    f" {self.target_registry.commit_id or 'N/A'} |"
                 ),
                 "",
             ]
@@ -86,10 +59,9 @@ class MarkdownReportGenerator:
         master_lines.append("")
 
         header = (
-            f"| Module | Features ({self.base_name}) | Score | Status | "
-            f"Details |"
+            f"| Module | Features ({self.base_name}) | Overlap | " f"Details |"
         )
-        divider = "|---|---|---|---|---|"
+        divider = "|---|---|---|---|"
 
         master_lines.extend(["## Module Summary", header, divider])
 
@@ -99,15 +71,26 @@ class MarkdownReportGenerator:
         # Determine cols based on language codes
         col_ns = f"{self.base_code}_namespace"
 
-        # Group by base namespace
-        # If namespace is empty, group under "Unknown Module"
-        self.df["_module_group"] = self.df[col_ns].replace("", "Unknown Module")
+        # Split DataFrame: Base Present vs Target Only
+        # Target Only rows have empty base_name (and score 0.0)
+        # Note: We check if base_name is empty/NaN.
+        # In clean_dataframe terms it might be "___", but here it is "" from raw.py
+        df_target_only = self.df[self.df[f"{self.base_code}_name"] == ""]
+        df_base_present = self.df[self.df[f"{self.base_code}_name"] != ""]
 
-        grouped = self.df.groupby("_module_group")
+        # Group by base namespace (for Base Present)
+        # If namespace is empty, group under "Unknown Module"
+        # We need to act on a copy to avoid SettingWithCopyWarning
+        df_base_present = df_base_present.copy()
+        df_base_present["_module_group"] = df_base_present[col_ns].replace(
+            "", "Unknown Module"
+        )
+
+        grouped = df_base_present.groupby("_module_group")
 
         total_high = 0
         total_low = 0
-        total_base_features = len(self.df)
+        total_base_features = len(df_base_present)
 
         for module, group in grouped:
             # Calculate module stats
@@ -150,10 +133,9 @@ class MarkdownReportGenerator:
             module_reports[module_filename] = module_content
 
             # Add summary row
-            status_icon = "✅" if score == 1.0 else "⚠️" if score > 0.5 else "❌"
             row_str = (
                 f"| `{module}` | {module_total} | "
-                f"{score:.2%} | {status_icon} | "
+                f"{score:.2%} | "
                 f"[View Details]({{modules_dir}}/{module_filename}) |"
             )
             module_rows.append((score, row_str))
@@ -181,17 +163,68 @@ class MarkdownReportGenerator:
             f"Likely matches needing verification |\n"
             f"| **❌ Mismatches** | **{base_exclusive}** | "
             f"No suitable match found in `{self.target_name}` |\n"
-            f"| **📊 Coverage Score** | **{parity_score:.2%}** | "
+            f"| **📊 Coverage Overlap** | **{parity_score:.2%}** | "
             f"Matches / Total Base Features ({total_matches} / "
             f"{total_base_features}) |"
         )
 
         master_lines[global_score_idx] = global_stats
 
+        # -- Target Exclusive Section --
+        if not df_target_only.empty:
+            target_section = self._generate_target_exclusive_section(
+                df_target_only
+            )
+            master_lines.append("")
+            master_lines.append(target_section)
+
         return MarkdownReport(
             main_report_content="\n".join(master_lines).strip(),
             module_reports=module_reports,
         )
+
+    def _generate_target_exclusive_section(self, df: pd.DataFrame) -> str:
+        """Generates a section in the request for Target-Only features."""
+        lines = [
+            "## Target-Exclusive Modules",
+            "",
+            f"Features found in **{self.target_name}** but NOT in **{self.base_name}**.",
+            "",
+        ]
+
+        col_ns = f"{self.target_code}_namespace"
+
+        # Determine modules
+        # Avoid SettingWithCopyWarning
+        df_copy = df.copy()
+        df_copy["_target_module"] = df_copy[col_ns].replace(
+            "", "Unknown Module"
+        )
+
+        # Group
+        grouped = df_copy.groupby("_target_module")
+
+        # Table
+        lines.append(f"| Target Module | Exclusive Features | Details |")
+        lines.append("| :--- | :--- | :--- |")
+
+        rows = []
+        for module, group in grouped:
+            count = len(group)
+
+            # List top 3 examples
+            examples = group[f"{self.target_code}_name"].head(3).tolist()
+            example_str = ", ".join([f"`{e}`" for e in examples])
+            if count > 3:
+                example_str += ", ..."
+
+            rows.append(f"| `{module}` | {count} | {example_str} |")
+
+        # Sort rows by count desc or alpha? Let's sort by module name (default)
+        # Actually keys are already sorted by groupby default
+
+        lines.extend(rows)
+        return "\n".join(lines)
 
     def _generate_module_content(
         self,
@@ -207,6 +240,10 @@ class MarkdownReportGenerator:
         total_matches = high_conf + low_conf
         coverage = total_matches / total_features if total_features > 0 else 0.0
 
+        # Replace empty values for display
+        # Replace empty values for display
+        group = reporting.clean_dataframe(group)
+
         summary_table = (
             "## Summary\n\n"
             "| Feature Category | Count | Details |\n"
@@ -217,7 +254,7 @@ class MarkdownReportGenerator:
             f"Likely matches needing verification |\n"
             f"| **❌ Mismatches** | **{mismatches}** | "
             f"No suitable match found in `{self.target_name}` |\n"
-            f"| **📊 Coverage Score** | **{coverage:.2%}** | "
+            f"| **📊 Coverage Overlap** | **{coverage:.2%}** | "
             f"Matches / Total Base Features ({total_matches} / "
             f"{total_features}) |\n"
         )
@@ -254,20 +291,14 @@ class MarkdownReportGenerator:
             t_mem = row[f"{self.target_code}_member_of"]
             t_name = row[f"{self.target_code}_name"]
 
-            if t_name == "" and t_mem == "" and t_ns == "":
+            if t_name == "___" and t_mem == "___" and t_ns == "___":
                 t_name = "*(None)*"
 
             score = row["score"]
             match_val = row["match"]
             conf_val = row["confidence"]
 
-            if match_val == "true":
-                if conf_val == "high":
-                    match_icon = "✅"
-                else:
-                    match_icon = "⚠️"
-            else:
-                match_icon = "❌"
+            match_icon = reporting.get_match_icon(match_val, conf_val)
 
             conf_display = conf_val.title()
             if conf_display == "High":
