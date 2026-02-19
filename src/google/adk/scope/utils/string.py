@@ -2,6 +2,7 @@
 Language normalization utilities for ADK Scope.
 """
 
+
 def get_language_name(language_name: str) -> str:
     """Returns a properly capitalized display name for the language."""
     name = language_name.upper()

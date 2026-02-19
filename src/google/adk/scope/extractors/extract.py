@@ -14,8 +14,8 @@ from google.adk.scope.extractors import (
     extractor_ts,
 )
 from google.adk.scope.features_pb2 import FeatureRegistry
-from google.adk.scope.utils.args import parse_args
 from google.adk.scope.utils import string
+from google.adk.scope.utils.args import parse_args
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -86,10 +86,10 @@ def get_latest_commit_id(repo_path: Path) -> str:
     try:
         # Run 'git rev-parse HEAD' to get the full SHA
         commit_id = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], 
-            cwd=str(repo_path), 
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(repo_path),
             text=True,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
         ).strip()
         return commit_id
     except (subprocess.CalledProcessError, FileNotFoundError):

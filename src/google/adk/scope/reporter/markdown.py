@@ -5,7 +5,7 @@ from typing import Dict
 import pandas as pd
 
 from google.adk.scope import features_pb2
-from google.adk.scope.utils import string, reporting
+from google.adk.scope.utils import reporting, string
 
 
 @dataclasses.dataclass
@@ -59,8 +59,7 @@ class MarkdownReportGenerator:
         master_lines.append("")
 
         header = (
-            f"| Module | Features ({self.base_name}) | Overlap | "
-            f"Details |"
+            f"| Module | Features ({self.base_name}) | Overlap | " f"Details |"
         )
         divider = "|---|---|---|---|"
 
@@ -83,8 +82,10 @@ class MarkdownReportGenerator:
         # If namespace is empty, group under "Unknown Module"
         # We need to act on a copy to avoid SettingWithCopyWarning
         df_base_present = df_base_present.copy()
-        df_base_present["_module_group"] = df_base_present[col_ns].replace("", "Unknown Module")
-        
+        df_base_present["_module_group"] = df_base_present[col_ns].replace(
+            "", "Unknown Module"
+        )
+
         grouped = df_base_present.groupby("_module_group")
 
         total_high = 0
@@ -171,7 +172,9 @@ class MarkdownReportGenerator:
 
         # -- Target Exclusive Section --
         if not df_target_only.empty:
-            target_section = self._generate_target_exclusive_section(df_target_only)
+            target_section = self._generate_target_exclusive_section(
+                df_target_only
+            )
             master_lines.append("")
             master_lines.append(target_section)
 
@@ -182,39 +185,44 @@ class MarkdownReportGenerator:
 
     def _generate_target_exclusive_section(self, df: pd.DataFrame) -> str:
         """Generates a section in the request for Target-Only features."""
-        lines = ["## Target-Exclusive Modules", "", 
-                 f"Features found in **{self.target_name}** but NOT in **{self.base_name}**.",
-                 ""]
-        
+        lines = [
+            "## Target-Exclusive Modules",
+            "",
+            f"Features found in **{self.target_name}** but NOT in **{self.base_name}**.",
+            "",
+        ]
+
         col_ns = f"{self.target_code}_namespace"
-        
+
         # Determine modules
         # Avoid SettingWithCopyWarning
         df_copy = df.copy()
-        df_copy["_target_module"] = df_copy[col_ns].replace("", "Unknown Module")
-        
+        df_copy["_target_module"] = df_copy[col_ns].replace(
+            "", "Unknown Module"
+        )
+
         # Group
         grouped = df_copy.groupby("_target_module")
-        
+
         # Table
         lines.append(f"| Target Module | Exclusive Features | Details |")
         lines.append("| :--- | :--- | :--- |")
-        
+
         rows = []
         for module, group in grouped:
             count = len(group)
-            
+
             # List top 3 examples
             examples = group[f"{self.target_code}_name"].head(3).tolist()
             example_str = ", ".join([f"`{e}`" for e in examples])
             if count > 3:
                 example_str += ", ..."
-            
+
             rows.append(f"| `{module}` | {count} | {example_str} |")
-            
+
         # Sort rows by count desc or alpha? Let's sort by module name (default)
         # Actually keys are already sorted by groupby default
-        
+
         lines.extend(rows)
         return "\n".join(lines)
 

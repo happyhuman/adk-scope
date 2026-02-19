@@ -119,8 +119,10 @@ class TestReporter(unittest.TestCase):
             self.assertIn("# Feature Matching Parity Report", report_md)
             self.assertIn("## Summary", report_md)
             # Check for new column
-            self.assertIn("| Role | Language | Version | Last Commit |", report_md)
-            
+            self.assertIn(
+                "| Role | Language | Version | Last Commit |", report_md
+            )
+
             # Check for High/Low confidence summaries
             self.assertIn(
                 "| **✅ High Confidence Matches** | **1** |", report_md

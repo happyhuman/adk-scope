@@ -5,7 +5,7 @@ from typing import Dict, List
 import pandas as pd
 
 from google.adk.scope import features_pb2
-from google.adk.scope.utils import string, reporting
+from google.adk.scope.utils import reporting, string
 
 
 @dataclasses.dataclass
@@ -39,7 +39,9 @@ class MatrixReportGenerator:
             self.base_code = self.base_name.lower()
             self.base_version = base_registry.version
         else:
-            self.base_name = string.get_language_name(base_language or "Unknown")
+            self.base_name = string.get_language_name(
+                base_language or "Unknown"
+            )
             self.base_code = self.base_name.lower()
             self.base_version = base_version or "Unknown"
 
@@ -63,12 +65,14 @@ class MatrixReportGenerator:
         # Use the first dataframe to get the base feature list
         first_target_code = list(self.match_dataframes.keys())[0]
         base_df = self.match_dataframes[first_target_code].copy()
-        
+
         # Filter base dataframe to exclude empty base keys (target-only)
         # This is critical for matrix report to avoid explosion
         # Note: `clean_dataframe` replaces NaN and "" with "___"
         col_name = f"{self.base_code}_name"
-        base_df = base_df[(base_df[col_name] != "") & (base_df[col_name] != "___")]
+        base_df = base_df[
+            (base_df[col_name] != "") & (base_df[col_name] != "___")
+        ]
 
         # We only really need the base columns from this one
         base_cols = [
@@ -76,17 +80,18 @@ class MatrixReportGenerator:
             f"{self.base_code}_member_of",
             f"{self.base_code}_name",
         ]
-        
+
         # Initialize the consolidated dataframe with base columns
         matrix_df = base_df[base_cols].copy()
-        
+
         target_cols_info = []
 
         # We iterate over match_dataframes keys if registries are not provided
         # or iterate based on preferred order if registries ARE provided.
         if self.target_registries:
             target_codes = [
-                string.get_language_name(r.language).lower() for r in self.target_registries
+                string.get_language_name(r.language).lower()
+                for r in self.target_registries
             ]
             # Ensure we only use those that are in dataframes
             target_iterator = [
@@ -104,7 +109,7 @@ class MatrixReportGenerator:
         for target_code, target_name in target_iterator:
 
             df = self.match_dataframes[target_code]
-            
+
             def get_icon(row):
                 match = row.get("match", "false")
                 conf = row.get("confidence", "low")
@@ -118,22 +123,22 @@ class MatrixReportGenerator:
             col_name = f"{self.base_code}_name"
             # Explicitly verify column exists to avoid KeyError if base language was guessed wrong
             if col_name not in df.columns:
-                 # Try to fallback or skip?
-                 # If base code is wrong, everything is broken.
-                 pass
+                # Try to fallback or skip?
+                # If base code is wrong, everything is broken.
+                pass
 
             df = df[(df[col_name] != "") & (df[col_name] != "___")].copy()
-            
+
             df[f"status_{target_code}"] = df.apply(get_icon, axis=1)
-            
+
             # We only need the status column to merge
             matrix_df = pd.merge(
                 matrix_df,
                 df[[*base_cols, f"status_{target_code}"]],
                 on=base_cols,
-                how="left"
+                how="left",
             )
-            
+
             target_cols_info.append(
                 {
                     "code": target_code,
@@ -177,14 +182,14 @@ class MatrixReportGenerator:
 
                 # Build row string
                 row_parts = [f"`{ns}`", f"`{mem}`", f"`{name}`"]
-                
+
                 for t in target_cols_info:
                     status = row[t["col"]]
                     # Handle NaN if merge failed (shouldn't happen)
                     if pd.isna(status):
                         status = "❓"
                     row_parts.append(status)
-                
+
                 lines.append(f"| {' | '.join(row_parts)} |")
 
         return MatrixReport(content="\n".join(lines))

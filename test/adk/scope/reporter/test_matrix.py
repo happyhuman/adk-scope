@@ -1,10 +1,10 @@
-
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+
 from google.adk.scope import features_pb2
 from google.adk.scope.reporter import matrix, reporter
 
@@ -34,28 +34,34 @@ class TestMatrixReport(unittest.TestCase):
 
     def test_matrix_generation_structure(self):
         # Create dummy dataframes
-        df_java = pd.DataFrame({
-            "py_namespace": ["google.cloud"],
-            "py_member_of": [""],
-            "py_name": ["Client"],
-            "java_namespace": ["com.google.cloud"],
-            "java_member_of": [""],
-            "java_name": ["Client"],
-            "match": ["true"],
-            "confidence": ["high"]
-        })
+        df_java = pd.DataFrame(
+            {
+                "py_namespace": ["google.cloud"],
+                "py_member_of": [""],
+                "py_name": ["Client"],
+                "java_namespace": ["com.google.cloud"],
+                "java_member_of": [""],
+                "java_name": ["Client"],
+                "match": ["true"],
+                "confidence": ["high"],
+            }
+        )
 
         match_dataframes = {"java": df_java}
-        
-        gen = matrix.MatrixReportGenerator(match_dataframes, self.base_registry, [self.java_registry])
+
+        gen = matrix.MatrixReportGenerator(
+            match_dataframes, self.base_registry, [self.java_registry]
+        )
         report = gen.generate()
-        
+
         self.assertIn("# Feature Matrix Report", report.content)
         self.assertIn("**Base Language**: Python", report.content)
-        self.assertIn("| Module (Python) | Container | Name | Java |", report.content)
-        self.assertIn("| `google.cloud` | `___` | `Client` | ✅ |", report.content)
-
-
+        self.assertIn(
+            "| Module (Python) | Container | Name | Java |", report.content
+        )
+        self.assertIn(
+            "| `google.cloud` | `___` | `Client` | ✅ |", report.content
+        )
 
     def test_csv_integration(self):
         # Create temporary CSV files
@@ -69,17 +75,31 @@ class TestMatrixReport(unittest.TestCase):
             output_file = temp_path / "matrix_report.md"
 
             # Use empty string for namespace to test replacement with ___
-            df1 = pd.DataFrame({
-                "py_namespace": [""], "py_member_of": ["c1"], "py_name": ["n1"],
-                "java_namespace": [""], "java_member_of": ["c1"], "java_name": ["n1"],
-                "match": ["true"], "confidence": ["high"]
-            })
-            df2 = pd.DataFrame({
-                "py_namespace": [""], "py_member_of": ["c1"], "py_name": ["n1"],
-                "go_namespace": [""], "go_member_of": ["c1"], "go_name": ["n1"],
-                "match": ["true"], "confidence": ["low"]
-            })
-            
+            df1 = pd.DataFrame(
+                {
+                    "py_namespace": [""],
+                    "py_member_of": ["c1"],
+                    "py_name": ["n1"],
+                    "java_namespace": [""],
+                    "java_member_of": ["c1"],
+                    "java_name": ["n1"],
+                    "match": ["true"],
+                    "confidence": ["high"],
+                }
+            )
+            df2 = pd.DataFrame(
+                {
+                    "py_namespace": [""],
+                    "py_member_of": ["c1"],
+                    "py_name": ["n1"],
+                    "go_namespace": [""],
+                    "go_member_of": ["c1"],
+                    "go_name": ["n1"],
+                    "match": ["true"],
+                    "confidence": ["low"],
+                }
+            )
+
             df1.to_csv(csv1, index=False)
             df2.to_csv(csv2, index=False)
 
@@ -99,6 +119,7 @@ class TestMatrixReport(unittest.TestCase):
                 self.assertIn("| ✅ | ⚠️ |", content)
             else:
                 self.assertIn("| ⚠️ | ✅ |", content)
+
 
 if __name__ == "__main__":
     unittest.main()

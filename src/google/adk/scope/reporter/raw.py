@@ -30,9 +30,6 @@ def get_type_display_name(f: features_pb2.Feature) -> str:
         return "unknown"
 
 
-
-
-
 class RawReportGenerator:
     def __init__(
         self,
@@ -45,7 +42,9 @@ class RawReportGenerator:
 
         # Pre-compute useful attributes
         self.base_name = string.get_language_name(self.base_registry.language)
-        self.target_name = string.get_language_name(self.target_registry.language)
+        self.target_name = string.get_language_name(
+            self.target_registry.language
+        )
         self.base_code = self.base_name.lower()
         self.target_code = self.target_name.lower()
         self.thresholds = SIMILARITY_THRESHOLDS.get(
