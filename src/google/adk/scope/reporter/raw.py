@@ -9,9 +9,9 @@ from google.adk.scope.utils.similarity import SimilarityScorer
 
 # Global thresholds for match confidence
 SIMILARITY_THRESHOLDS = {
-    frozenset(["py", "go"]): {"high": 0.6, "avg": 0.5},
-    frozenset(["py", "java"]): {"high": 0.6, "avg": 0.58},
-    frozenset(["py", "ts"]): {"high": 0.7, "avg": 0.55},
+    frozenset(["python", "go"]): {"high": 0.75, "avg": 0.65},
+    frozenset(["python", "java"]): {"high": 0.6, "avg": 0.58},
+    frozenset(["python", "typescript"]): {"high": 0.7, "avg": 0.55},
 }
 
 # Fallback thresholds if language pair not explicitly defined
@@ -86,7 +86,17 @@ class RawReportGenerator:
         self, f_base: features_pb2.Feature
     ) -> Tuple[Optional[features_pb2.Feature], float]:
         """Finds the best matching feature in the target registry."""
-        candidates = self.target_by_type.get(f_base.type, [])
+        candidates = self.target_by_type.get(f_base.type, [])[:]
+        
+        # Allow cross-type matching for specific pairs
+        FeatureType = features_pb2.Feature.Type
+        if f_base.type == FeatureType.INSTANCE_METHOD:
+            # INSTANCE_METHOD can also match FUNCTION (e.g. __call__ -> func)
+            candidates.extend(self.target_by_type.get(FeatureType.FUNCTION, []))
+        elif f_base.type == FeatureType.FUNCTION:
+            # FUNCTION can also match INSTANCE_METHOD
+            candidates.extend(self.target_by_type.get(FeatureType.INSTANCE_METHOD, []))
+
         if not candidates:
             return None, 0.0
 
@@ -94,7 +104,7 @@ class RawReportGenerator:
         best_score = -1.0
 
         for f_target in candidates:
-            score = self.scorer.get_similarity_score(f_base, f_target)
+            score, _ = self.scorer.get_similarity_score(f_base, f_target)
             if score > best_score:
                 best_score = score
                 best_match = f_target

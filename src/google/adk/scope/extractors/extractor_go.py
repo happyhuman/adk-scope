@@ -96,6 +96,12 @@ def extract_features(
             type: (struct_type) @struct_body
           )
         )
+        (type_declaration
+          (type_spec
+            name: (type_identifier) @func_type_name
+            type: (function_type) @func_type_body
+          )
+        )
     """
     query = Query(GO_LANGUAGE, query_text)
     cursor = QueryCursor(query)
@@ -109,6 +115,13 @@ def extract_features(
     for capture_name, node_list in captures.items():
         if capture_name in ("func", "method", "interface_method"):
             all_nodes.extend(node_list)
+        elif capture_name == "func_type_body":
+            # For function types, we want to process the parent type_spec to get the name
+            # node_list contains the func_type nodes.
+            for node in node_list:
+                # Parent is type_spec
+                if node.parent and node.parent.type == "type_spec":
+                    all_nodes.append(node.parent)
         elif capture_name == "struct_body":
             # We need to associate the struct body with its name.
             # The query captures @struct_name and @struct_body separately but
@@ -131,7 +144,7 @@ def extract_features(
 
     for node in all_nodes:
         # Prevent filtering out abstract interface methods which have no body
-        if node.type == "method_elem":
+        if node.type == "method_elem" or node.type == "type_spec":
             pass
         else:
             # Filter out simple functions (e.g., getters, setters) by checking

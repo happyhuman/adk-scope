@@ -14,6 +14,14 @@ from google.adk.scope.utils.normalizer import TypeNormalizer, normalize_name
 logger = logging.getLogger(__name__)
 
 
+def _to_pascal_case(s: str) -> str:
+    """Convert snake_case or standard string to PascalCase."""
+    # Split by _ or .
+    parts = s.replace("_", " ").replace(".", " ").split()
+    return "".join(p.capitalize() for p in parts)
+
+
+
 class NodeProcessor:
     """Process Tree-sitter nodes into Feature objects for Go."""
 
@@ -36,9 +44,18 @@ class NodeProcessor:
             "function_declaration",
             "method_declaration",
             "method_elem",
+            "type_spec",
         )
         if node.type not in valid_nodes:
             return None
+
+        # Check for type_spec with function_type specifically
+        func_type_node = None
+        if node.type == "type_spec":
+            type_node = node.child_by_field_name("type")
+            if not type_node or type_node.type != "function_type":
+                return None
+            func_type_node = type_node
 
         original_name = self._extract_name(node)
         if not original_name:
@@ -55,8 +72,17 @@ class NodeProcessor:
         if node.type == "method_declaration":
             feature_type = feature_pb2.Feature.Type.INSTANCE_METHOD
             member_of = self._extract_receiver_type(node)
+            
+            # If receiver is private (lowercase), try to map it to the package-level "Class"
+            # e.g. 'agentTool' -> 'AgentTool' if package is 'agenttool'
             if member_of and member_of[0].islower():
-                member_of = member_of[0].upper() + member_of[1:]
+                pkg_name = namespace.split(".")[-1]
+                if member_of.lower() == pkg_name.lower():
+                    member_of = _to_pascal_case(pkg_name)
+                else:
+                    # Fallback to just capitalizing the private struct
+                    member_of = member_of[0].upper() + member_of[1:]
+            
             normalized_member_of = (
                 normalize_name(member_of) if member_of else ""
             )
@@ -64,29 +90,47 @@ class NodeProcessor:
             "New"
         ):
             feature_type = feature_pb2.Feature.Type.CONSTRUCTOR
-            # For constructors, try to infer member_of from the return type
-            # e.g. func NewAgent() *Agent -> member_of = Agent
-            original_returns, _ = self._extract_return_types(node)
-            if original_returns:
-                # Typically the first return value is the struct
-                ret_type = original_returns[0]
-                # access the struct name, e.g. *Agent -> Agent,
-                # mypkg.Agent -> Agent
-                # Similar logic to parameter flattening type extraction
-                clean_ret = ret_type.lstrip("*").split(".")[-1]
-                if clean_ret:
-                    member_of = clean_ret
-                    normalized_member_of = normalize_name(member_of)
+            
+            # Special handling for "New": define it as the constructor of the Package "Class"
+            # e.g. agenttool.New -> AgentTool.New
+            if original_name == "New":
+                pkg_name = namespace.split(".")[-1]
+                member_of = _to_pascal_case(pkg_name)
+                normalized_member_of = normalize_name(member_of)
+            else:
+                # For named constructors like NewSomething, try to infer member_of from return type
+                original_returns, _ = self._extract_return_types(node)
+                if original_returns:
+                    ret_type = original_returns[0]
+                    clean_ret = ret_type.lstrip("*").split(".")[-1]
+                    if clean_ret:
+                        member_of = clean_ret
+                        normalized_member_of = normalize_name(member_of)
+        
         elif node.type == "method_elem":
             feature_type = feature_pb2.Feature.Type.INSTANCE_METHOD
             member_of = self._extract_interface_name(node)
             normalized_member_of = (
                 normalize_name(member_of) if member_of else ""
             )
+        elif node.type == "type_spec" and func_type_node:
+            # Treat function types (type X func(...)) as classes or interfaces to match Python Abstract Classes
+            feature_type = feature_pb2.Feature.Type.FUNCTION 
+            # member_of is empty for top-level types (or package if needed)
+            member_of = ""
+            normalized_member_of = ""
+            
+            # Use the func_type node to extract params/returns
+            pass
 
-        parameters, is_async = self._extract_params(node)
+        if node.type == "type_spec" and func_type_node:
+            # Special extraction for func_type_node
+            parameters, is_async = self._extract_params(func_type_node)
+            original_returns, normalized_returns = self._extract_return_types(func_type_node)
+        else:
+            parameters, is_async = self._extract_params(node)
+            original_returns, normalized_returns = self._extract_return_types(node)
 
-        original_returns, normalized_returns = self._extract_return_types(node)
 
         docstring = self._extract_docstring(node)
 
@@ -316,7 +360,7 @@ class NodeProcessor:
         return params, is_async
 
     def _extract_name(self, node: Node) -> str:
-        """Extract the name from a function_declaration node."""
+        """Extract the name from a function_declaration or type_spec node."""
         name_node = node.child_by_field_name("name")
         if name_node:
             return name_node.text.decode("utf-8")

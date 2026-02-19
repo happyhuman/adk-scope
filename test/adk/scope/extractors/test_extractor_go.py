@@ -74,6 +74,62 @@ class TestExtractor(unittest.TestCase):
             self.assertEqual(features[0], expected_feature)
             self.assertEqual(features[1], expected_feature)
 
+    @patch("google.adk.scope.extractors.extractor_go.QueryCursor")
+    @patch("google.adk.scope.extractors.extractor_go.Query")
+    @patch("google.adk.scope.extractors.extractor_go.PARSER")
+    def test_extract_func_type(
+        self, mock_parser, mock_query_cls, mock_cursor_cls
+    ):
+        mock_path = MagicMock(spec=Path)
+        mock_path.name = "agent.go"
+        mock_path.read_bytes.return_value = b"type MyFunc func() {}"
+
+        mock_tree = MagicMock()
+        mock_parser.parse.return_value = mock_tree
+        mock_tree.root_node = MagicMock()
+
+        mock_cursor_instance = mock_cursor_cls.return_value
+        
+        mock_type_spec = MagicMock()
+        mock_type_spec.type = "type_spec"
+        
+        mock_func_type = MagicMock()
+        mock_func_type.type = "function_type"
+        mock_func_type.parent = mock_type_spec
+        # Add required start/end points for line span check
+        mock_func_type.child_by_field_name.return_value = None  # No body child
+        mock_func_type.start_point = (10, 0)
+        mock_func_type.end_point = (10, 0)
+        
+        mock_captures = {
+            "func_type_body": [mock_func_type]
+        }
+        mock_cursor_instance.captures.return_value = mock_captures
+        
+        with patch(
+            "google.adk.scope.extractors.extractor_go.NodeProcessor"
+        ) as MockProcessor:
+            processor_instance = MockProcessor.return_value
+            # We expect the processor to be called with the parent type_spec node
+            from google.adk.scope import features_pb2
+
+            expected_feature = Feature(
+                original_name="MyFuncType", normalized_name="my_func_type",
+                type=features_pb2.Feature.Type.FUNCTION
+            )
+            processor_instance.process.return_value = expected_feature
+            
+            features = extract_features(mock_path, Path("/repo"), ".")
+            
+            self.assertEqual(len(features), 1)
+            self.assertEqual(features[0], expected_feature)
+            
+            # Verify process was called with parent node
+            # namespace defaults to "adk" if normalization sees root match
+            processor_instance.process.assert_called_with(
+                mock_type_spec, mock_path.resolve(), Path("/repo"), "", "adk"
+            )
+
     def test_get_version(self):
         with patch("pathlib.Path.exists", return_value=True):
             with patch(

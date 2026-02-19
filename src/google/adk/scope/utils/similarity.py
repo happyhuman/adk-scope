@@ -11,11 +11,11 @@ logger = logging.getLogger(__name__)
 
 # Default weights for the similarity calculation.
 DEFAULT_SIMILARITY_WEIGHTS = {
-    "name": 0.30,
+    "name": 0.35,
     "member_of": 0.30,
     "namespace": 0.15,
     "parameters": 0.15,
-    "return_type": 0.10,
+    "return_type": 0.05,
 }
 
 
@@ -226,9 +226,23 @@ class SimilarityScorer:
                 f"Using default weights: {current_weights}"
             )
             pass  # Keep default weights
+
+        elif {t1, t2} == {FeatureType.INSTANCE_METHOD, FeatureType.FUNCTION}:
+            # Only allow if one is a generic method name (heuristic match)
+            f1_name = feature1.normalized_name
+            f2_name = feature2.normalized_name
+            is_heuristic = (
+                (t1 == FeatureType.INSTANCE_METHOD and f1_name in ("__call__", "invoke", "apply")) or
+                (t2 == FeatureType.INSTANCE_METHOD and f2_name in ("__call__", "invoke", "apply"))
+            )
+            if not is_heuristic:
+                 return 0.0, {}
+            # If heuristic applies, fall through to calculations
+            pass
+
         else:
             logger.debug(f"Incompatible types: {t1} vs {t2}. Returning 0.0")
-            return 0.0  # Fast out for incompatible types
+            return 0.0, {}  # Fast out for incompatible types
 
         # 2. Similarity Calculations
         scores = {
@@ -242,6 +256,45 @@ class SimilarityScorer:
                 feature1.normalized_namespace, feature2.normalized_namespace
             ),
         }
+        
+        # Heuristic: If comparing INSTANCE_METHOD vs FUNCTION, and method name is generic 
+        # (e.g. __call__, invoke), use the Class Name (member_of) as the Name for comparison.
+        if {t1, t2} == {FeatureType.INSTANCE_METHOD, FeatureType.FUNCTION}:
+             f1_name = feature1.normalized_name
+             f2_name = feature2.normalized_name
+             heuristic_applied = False
+             
+             # Check f1 (Python side?)
+             if t1 == FeatureType.INSTANCE_METHOD and f1_name in ("__call__", "invoke", "apply"):
+                 f1_name = feature1.normalized_member_of
+                 heuristic_applied = True
+                 
+             # Check f2 (if Python target?)
+             if t2 == FeatureType.INSTANCE_METHOD and f2_name in ("__call__", "invoke", "apply"):
+                 f2_name = feature2.normalized_member_of
+                 heuristic_applied = True
+
+             scores["name"] = self.get_similarity(f1_name, f2_name)
+             
+             # NAME VETO: If names are too dissimilar, it's not a match.
+             # Only apply if name is weighted (skips CONSTRUCTOR where name weight is 0.0)
+             if current_weights["name"] > 0 and scores["name"] < 0.4:
+                 logger.debug(
+                     f"Name match {scores['name']:.2f} < 0.4. Vetoing match."
+                 )
+                 return 0.0, scores
+             
+             if heuristic_applied:
+                 # Since we used member_of as name, we should not double count member_of matching
+                 # (which will be poor anyway: ClassName vs "").
+                 # Shift all member_of weight to name.
+                 current_weights["name"] += current_weights["member_of"]
+                 current_weights["member_of"] = 0.0
+                 logger.debug(
+                    "Applied __call__ heuristic. "
+                    f"Adjusted weights: {current_weights}"
+                )
+
         logger.debug(
             f"Comparison Details:\n"
             f"  Name: '{feature1.normalized_name}' vs "
@@ -260,7 +313,7 @@ class SimilarityScorer:
             + scores["namespace"] * current_weights["namespace"]
         )
 
-        early_exit_threshold = 0.8 * (
+        early_exit_threshold = 0.6 * (
             current_weights["name"]
             + current_weights["member_of"]
             + current_weights["namespace"]
@@ -275,7 +328,7 @@ class SimilarityScorer:
                 f"Early exit triggered ({preliminary_score:.4f} < "
                 f"{early_exit_threshold:.4f})"
             )
-            return preliminary_score
+            return preliminary_score, scores
 
         scores["parameters"] = self._calculate_parameters_score(
             feature1.parameters, feature2.parameters
@@ -299,4 +352,4 @@ class SimilarityScorer:
             )
 
         logger.debug(f"Final weighted similarity score: {final_score:.4f}")
-        return final_score
+        return final_score, scores

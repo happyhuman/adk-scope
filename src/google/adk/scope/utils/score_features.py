@@ -36,7 +36,7 @@ def main():
         text_format.Parse(f2_content, f2)
 
         scorer = SimilarityScorer()
-        score = scorer.get_similarity_score(f1, f2)
+        score, _ = scorer.get_similarity_score(f1, f2)
 
         print("-" * 40)
         print(f"Similarity Score: {score:.4f}")
