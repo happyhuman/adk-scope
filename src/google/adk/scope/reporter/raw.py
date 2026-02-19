@@ -9,7 +9,7 @@ from google.adk.scope.utils.similarity import SimilarityScorer
 
 # Global thresholds for match confidence
 SIMILARITY_THRESHOLDS = {
-    frozenset(["python", "go"]): {"high": 0.75, "avg": 0.65},
+    frozenset(["python", "go"]): {"high": 0.75, "avg": 0.70},
     frozenset(["python", "java"]): {"high": 0.6, "avg": 0.58},
     frozenset(["python", "typescript"]): {"high": 0.7, "avg": 0.55},
 }

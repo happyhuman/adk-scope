@@ -1,8 +1,9 @@
 import logging
-from typing import Optional
+import re
+from typing import Optional, Set
 
 import numpy as np
-from jellyfish import levenshtein_distance
+from jellyfish import jaro_winkler_similarity, levenshtein_distance
 from scipy.optimize import linear_sum_assignment
 
 from google.adk.scope import features_pb2 as features_pb
@@ -44,10 +45,41 @@ class SimilarityScorer:
         if not s1 or not s2:
             return 0.0
 
-        # Default to Levenshtein
+        # 1. Levenshtein Distance (Character-based)
         dist = levenshtein_distance(s1, s2)
         max_len = max(len(s1), len(s2))
-        return 1.0 - (dist / max_len)
+        lev_score = 1.0 - (dist / max_len)
+        
+        # 2. Token Set Ratio (Word-based, handles reordering/partial match)
+        token_score = self._token_set_ratio(s1, s2)
+        
+        # 3. Jaro-Winkler (Prefix bias, handles typos/short strings)
+        jw_score = jaro_winkler_similarity(s1, s2)
+        
+        # Average the three scores
+        return (lev_score + token_score + jw_score) / 3.0
+
+    def _tokenize(self, s: str) -> Set[str]:
+        """Splits string into tokens based on snake_case and CamelCase."""
+        # Handle snake_case and kebab-case
+        s = s.replace("_", " ").replace("-", " ")
+        # Handle CamelCase (insert space before capitals)
+        s = re.sub(r"([a-z])([A-Z])", r"\1 \2", s)
+        # Split and lower
+        return {w.lower() for w in s.split() if w}
+
+    def _token_set_ratio(self, s1: str, s2: str) -> float:
+        """Calculates Intersection / Union of token sets."""
+        t1 = self._tokenize(s1)
+        t2 = self._tokenize(s2)
+        
+        if not t1 or not t2:
+            return 0.0
+            
+        intersection = t1 & t2
+        union = t1 | t2
+        
+        return len(intersection) / len(union) if union else 0.0
 
     def _fuzzy_type_match(self, types1: list, types2: list) -> float:
         """Calculates a fuzzy similarity score between two lists of types."""
