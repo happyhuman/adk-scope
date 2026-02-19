@@ -1,4 +1,5 @@
 import logging
+import subprocess
 import sys
 from pathlib import Path
 
@@ -77,6 +78,21 @@ def get_search_dir(input_path: Path, language: str) -> Path:
         input_path,
     )
     return input_path
+
+
+def get_latest_commit_id(repo_path: Path) -> str:
+    """Gets the latest commit ID from a git repository."""
+    try:
+        # Run 'git rev-parse HEAD' to get the full SHA
+        commit_id = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], 
+            cwd=str(repo_path), 
+            text=True,
+            stderr=subprocess.DEVNULL
+        ).strip()
+        return commit_id
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return ""
 
 
 def main():
@@ -210,10 +226,13 @@ def main():
         repo_root if repo_root else Path(".")
     )
 
+    commit_id = get_latest_commit_id(repo_root if repo_root else Path("."))
+
     registry = FeatureRegistry(
         language=args.language.upper(),
         version=version,
         features=all_features,
+        commit_id=commit_id,
     )
 
     output_dir = args.output

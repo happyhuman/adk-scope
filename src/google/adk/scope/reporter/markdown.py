@@ -207,6 +207,10 @@ class MarkdownReportGenerator:
         total_matches = high_conf + low_conf
         coverage = total_matches / total_features if total_features > 0 else 0.0
 
+        # Replace empty values for display
+        group = group.fillna("___")
+        group = group.replace("", "___")
+
         summary_table = (
             "## Summary\n\n"
             "| Feature Category | Count | Details |\n"
@@ -254,7 +258,7 @@ class MarkdownReportGenerator:
             t_mem = row[f"{self.target_code}_member_of"]
             t_name = row[f"{self.target_code}_name"]
 
-            if t_name == "" and t_mem == "" and t_ns == "":
+            if t_name == "___" and t_mem == "___" and t_ns == "___":
                 t_name = "*(None)*"
 
             score = row["score"]

@@ -111,7 +111,6 @@ class TestReporter(unittest.TestCase):
             output_path = Path(temp_dir) / "report.md"
             result_md = reporter.generate_markdown_raw_reports(
                 [base_registry, target_registry],
-                report_type="md",
                 output_path=output_path,
             )
             report_md = result_md.main_report_content

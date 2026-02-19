@@ -13,19 +13,19 @@ echo "Extracting Go features..."
 # Py -> TS
 
 echo "Generating raw and markdown reports..."
-./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output --report-type md
+./report.sh --base output/py.txtpb --target output/ts.txtpb --output ./output
 
 # Py -> Java
 
 echo "Generating raw and markdown reports..."
-./report.sh --base output/py.txtpb --target output/java.txtpb --output ./output --report-type md
+./report.sh --base output/py.txtpb --target output/java.txtpb --output ./output
 
 # Py -> Go
 
 echo "Generating raw and markdown reports..."
-./report.sh --base output/py.txtpb --target output/go.txtpb --output ./output --report-type md
+./report.sh --base output/py.txtpb --target output/go.txtpb --output ./output
 
 # Matrix reports
 
-#echo "Generating matrix reports..."
-#./report.sh --registries output/py.txtpb output/ts.txtpb output/java.txtpb output/go.txtpb --output ./output --report-type matrix --common
+echo "Generating matrix reports..."
+./report.sh --registries output/py_go.csv output/py_java.csv output/py_ts.csv --output ./output
