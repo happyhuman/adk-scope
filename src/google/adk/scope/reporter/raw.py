@@ -61,10 +61,20 @@ class RawReportGenerator:
     def generate(self, output_path: Optional[str] = None) -> pd.DataFrame:
         """Generates the raw report DataFrame and optionally saves it to CSV."""
         rows = []
+        matched_target_ids = set()
+
         for f_base in self.base_registry.features:
             best_match, best_score = self._find_best_match(f_base)
+            if best_match:
+                matched_target_ids.add(id(best_match))
             row = self._create_row_data(f_base, best_match, best_score)
             rows.append(row)
+
+        # Process Target-Only Features
+        for f_target in self.target_registry.features:
+            if id(f_target) not in matched_target_ids:
+                row = self._create_row_data(None, f_target, 0.0)
+                rows.append(row)
 
         df = self._create_dataframe(rows)
 
@@ -94,7 +104,7 @@ class RawReportGenerator:
 
     def _create_row_data(
         self,
-        f_base: features_pb2.Feature,
+        f_base: Optional[features_pb2.Feature],
         f_target: Optional[features_pb2.Feature],
         score: float,
     ) -> Dict[str, Any]:
@@ -102,7 +112,10 @@ class RawReportGenerator:
         row: Dict[str, Any] = {}
 
         # Base columns
-        self._fill_feature_cols(row, f_base, self.base_code)
+        if f_base:
+            self._fill_feature_cols(row, f_base, self.base_code)
+        else:
+            self._fill_empty_cols(row, self.base_code)
 
         # Target columns
         if f_target:
@@ -111,7 +124,12 @@ class RawReportGenerator:
             self._fill_empty_cols(row, self.target_code)
 
         # Metadata
-        row["type"] = get_type_display_name(f_base)
+        ref_feature = f_base if f_base else f_target
+        if ref_feature:
+            row["type"] = get_type_display_name(ref_feature)
+        else:
+            row["type"] = "unknown"
+
         row["score"] = score
 
         # Match status

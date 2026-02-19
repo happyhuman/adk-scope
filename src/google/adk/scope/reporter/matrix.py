@@ -8,8 +8,6 @@ from google.adk.scope import features_pb2
 from google.adk.scope.utils import string, reporting
 
 
-
-
 @dataclasses.dataclass
 class MatrixReport:
     content: str
@@ -59,28 +57,18 @@ class MatrixReportGenerator:
             ]
         )
 
-        # Prepare columns
-        # We need to join all dataframes on the base feature unique identifier.
-        # Unique ID = (namespace, member_of, name)
-        # Note: In raw report, these are `base_namespace`, ranges...
-        # actually `base_name` etc.
-        # (Actually `py_namespace` etc. if base is Python)
-
-        # Let's collect all base features first.
-        # We can just use one of the dataframes as the driver, or the registry
-        # itself. But using the dataframe is easier as it already has the rows.
-        # However, multiple targets might have different subsets if there were
-        # bugs, but theoretically all dataframes should have ALL base features
-        # as rows (outer join or left join from base).
-        # `RawReportGenerator` iterates over ALL base features, so every DF
-        # has all base features.
-
         if not self.match_dataframes:
             return MatrixReport("No data available.")
 
         # Use the first dataframe to get the base feature list
         first_target_code = list(self.match_dataframes.keys())[0]
         base_df = self.match_dataframes[first_target_code].copy()
+        
+        # Filter base dataframe to exclude empty base keys (target-only)
+        # This is critical for matrix report to avoid explosion
+        # Note: `clean_dataframe` replaces NaN and "" with "___"
+        col_name = f"{self.base_code}_name"
+        base_df = base_df[(base_df[col_name] != "") & (base_df[col_name] != "___")]
 
         # We only really need the base columns from this one
         base_cols = [
@@ -92,13 +80,6 @@ class MatrixReportGenerator:
         # Initialize the consolidated dataframe with base columns
         matrix_df = base_df[base_cols].copy()
         
-        # Create a display name for the base feature
-        # E.g. "google.adk.scope.Feature"
-        # Or just use the columns as is.
-        # Let's create a specific 'Feature' column for readability if we want,
-        # but the task request says "similar to markdown report".
-        # The markdown report groups by module.
-
         target_cols_info = []
 
         # We iterate over match_dataframes keys if registries are not provided
@@ -124,37 +105,25 @@ class MatrixReportGenerator:
 
             df = self.match_dataframes[target_code]
             
-            # We assume df is aligned with matrix_df because
-            # `RawReportGenerator` iterates `base_registry.features` in order.
-            # TO BE SAFE: we should merge on the base columns.
-            
-            # Rename `match` and `confidence` to include target code
-            # We want to show a symbol based on match/confidence.
-            
             def get_icon(row):
                 match = row.get("match", "false")
                 conf = row.get("confidence", "low")
                 return reporting.get_match_icon(match, conf)
 
-            # We can't apply this directly to `df` efficiently if we are going
-            # to merge, unless we create a temp column.
-            
-            # Let's just merge 'match' and 'confidence' first.
-            # suffix = f"_{target_code}"
-            # Merging logic removed as we do it simpler below.
-            
-            # Now calculate the icon for this target
-            # Note: after merge, columns might be named `match` (if first) or
-            # `match_go` etc.
-            # Wait, `pd.merge` might create duplicates if we are not careful
-            # with suffixes.
-            # Actually, `matrix_df` starts with NO match/confidence columns.
-            # So the first merge adds `match`, `confidence`.
-            # Subsequent merges need suffixes.
-
             # Better approach: Just build the `icon` column in the source DF
             # and rename it.
-            df = df.copy()
+            # Filter out target-only rows (where base_name is empty or placeholder) before processing
+            # to avoid merging on empty keys which causes explosion
+            # Note: `clean_dataframe` replaces NaN and "" with "___"
+            col_name = f"{self.base_code}_name"
+            # Explicitly verify column exists to avoid KeyError if base language was guessed wrong
+            if col_name not in df.columns:
+                 # Try to fallback or skip?
+                 # If base code is wrong, everything is broken.
+                 pass
+
+            df = df[(df[col_name] != "") & (df[col_name] != "___")].copy()
+            
             df[f"status_{target_code}"] = df.apply(get_icon, axis=1)
             
             # We only need the status column to merge
@@ -176,10 +145,9 @@ class MatrixReportGenerator:
         # Now we have `matrix_df` with base cols + status_{target} cols.
         # Let's group by namespace (Module).
 
-        # Same logic as Markdown report for grouping
         col_ns = f"{self.base_code}_namespace"
         matrix_df["_module_group"] = matrix_df[col_ns].replace(
-            "", "Unknown Module"
+            ["", "___"], "Unknown Module"
         )
         grouped = matrix_df.groupby("_module_group")
 

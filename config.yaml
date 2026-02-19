@@ -11,7 +11,7 @@ typescript:
 java:
   source_root: core/src/main/java/com/google/adk
   exclude:
-    - examples
+    - com.example
 
 go:
   source_root: .
