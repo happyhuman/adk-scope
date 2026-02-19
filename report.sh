@@ -80,8 +80,11 @@ EXTENSION="md"
 
 # Standard 2-way report
 OUTPUT_FILENAME="${LANG_CODES[0]}_${LANG_CODES[1]}.${EXTENSION}"
-# Ensure report type is 'md' for standard logic so unified generator runs
 
+# Check if we are running in matrix mode (CSV inputs)
+if [[ "${REGISTRIES[0]}" == *.csv ]]; then
+    OUTPUT_FILENAME="matrix_report.md"
+fi
 
 FULL_OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILENAME}"
 

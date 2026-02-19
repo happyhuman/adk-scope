@@ -15,6 +15,7 @@ from google.adk.scope.extractors import (
 )
 from google.adk.scope.features_pb2 import FeatureRegistry
 from google.adk.scope.utils.args import parse_args
+from google.adk.scope.utils import string
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -242,15 +243,7 @@ def main():
         logger.error("Failed to create output directory %s: %s", output_dir, e)
         sys.exit(1)
 
-    prefix = (
-        "py"
-        if args.language in {"python", "py"}
-        else (
-            "ts"
-            if args.language in {"typescript", "ts"}
-            else "java" if args.language == "java" else "go"
-        )
-    )
+    prefix = string.get_language_name(args.language).lower()
     base_filename = f"{prefix}"
 
     if _JSON_OUTPUT:

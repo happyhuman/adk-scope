@@ -5,6 +5,7 @@ from typing import Dict
 import pandas as pd
 
 from google.adk.scope import features_pb2
+from google.adk.scope.utils import string, reporting
 
 
 @dataclasses.dataclass
@@ -13,34 +14,7 @@ class MarkdownReport:
     module_reports: Dict[str, str]  # filename -> content
 
 
-def _get_language_code(language_name: str) -> str:
-    """Returns a short code for the language."""
-    name = language_name.upper()
-    if name in {"PYTHON", "PY"}:
-        return "py"
-    elif name in {"TYPESCRIPT", "TS"}:
-        return "ts"
-    elif name == "JAVA":
-        return "java"
-    elif name in {"GOLANG", "GO"}:
-        return "go"
-    else:
-        return name.lower()
 
-
-def _get_language_name(language_name: str) -> str:
-    """Returns a properly capitalized display name for the language."""
-    name = language_name.upper()
-    if name in {"PYTHON", "PY"}:
-        return "Python"
-    elif name in {"TYPESCRIPT", "TS"}:
-        return "TypeScript"
-    elif name == "JAVA":
-        return "Java"
-    elif name in {"GOLANG", "GO"}:
-        return "Go"
-    else:
-        return language_name.title()
 
 
 class MarkdownReportGenerator:
@@ -54,10 +28,10 @@ class MarkdownReportGenerator:
         self.target_registry = target_registry
         self.df = df
 
-        self.base_code = _get_language_code(base_registry.language)
-        self.target_code = _get_language_code(target_registry.language)
-        self.base_name = _get_language_name(base_registry.language)
-        self.target_name = _get_language_name(target_registry.language)
+        self.base_name = string.get_language_name(base_registry.language)
+        self.target_name = string.get_language_name(target_registry.language)
+        self.base_code = self.base_name.lower()
+        self.target_code = self.target_name.lower()
 
     def generate(self) -> MarkdownReport:
         """Generates a Markdown parity report from the DataFrame."""
@@ -67,15 +41,17 @@ class MarkdownReportGenerator:
                 "# Feature Matching Parity Report",
                 f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 "",
-                "| Role | Language | Version |",
-                "| :--- | :--- | :--- |",
+                "| Role | Language | Version | Last Commit |",
+                "| :--- | :--- | :--- | :--- |",
                 (
                     f"| **Base** | {self.base_registry.language} |"
                     f" {self.base_registry.version} |"
+                    f" {self.base_registry.commit_id or 'N/A'} |"
                 ),
                 (
                     f"| **Target** | {self.target_registry.language} |"
                     f" {self.target_registry.version} |"
+                    f" {self.target_registry.commit_id or 'N/A'} |"
                 ),
                 "",
             ]
@@ -86,10 +62,10 @@ class MarkdownReportGenerator:
         master_lines.append("")
 
         header = (
-            f"| Module | Features ({self.base_name}) | Score | Status | "
+            f"| Module | Features ({self.base_name}) | Overlap | "
             f"Details |"
         )
-        divider = "|---|---|---|---|---|"
+        divider = "|---|---|---|---|"
 
         master_lines.extend(["## Module Summary", header, divider])
 
@@ -150,10 +126,9 @@ class MarkdownReportGenerator:
             module_reports[module_filename] = module_content
 
             # Add summary row
-            status_icon = "✅" if score == 1.0 else "⚠️" if score > 0.5 else "❌"
             row_str = (
                 f"| `{module}` | {module_total} | "
-                f"{score:.2%} | {status_icon} | "
+                f"{score:.2%} | "
                 f"[View Details]({{modules_dir}}/{module_filename}) |"
             )
             module_rows.append((score, row_str))
@@ -181,7 +156,7 @@ class MarkdownReportGenerator:
             f"Likely matches needing verification |\n"
             f"| **❌ Mismatches** | **{base_exclusive}** | "
             f"No suitable match found in `{self.target_name}` |\n"
-            f"| **📊 Coverage Score** | **{parity_score:.2%}** | "
+            f"| **📊 Coverage Overlap** | **{parity_score:.2%}** | "
             f"Matches / Total Base Features ({total_matches} / "
             f"{total_base_features}) |"
         )
@@ -208,8 +183,8 @@ class MarkdownReportGenerator:
         coverage = total_matches / total_features if total_features > 0 else 0.0
 
         # Replace empty values for display
-        group = group.fillna("___")
-        group = group.replace("", "___")
+        # Replace empty values for display
+        group = reporting.clean_dataframe(group)
 
         summary_table = (
             "## Summary\n\n"
@@ -221,7 +196,7 @@ class MarkdownReportGenerator:
             f"Likely matches needing verification |\n"
             f"| **❌ Mismatches** | **{mismatches}** | "
             f"No suitable match found in `{self.target_name}` |\n"
-            f"| **📊 Coverage Score** | **{coverage:.2%}** | "
+            f"| **📊 Coverage Overlap** | **{coverage:.2%}** | "
             f"Matches / Total Base Features ({total_matches} / "
             f"{total_features}) |\n"
         )
@@ -265,13 +240,7 @@ class MarkdownReportGenerator:
             match_val = row["match"]
             conf_val = row["confidence"]
 
-            if match_val == "true":
-                if conf_val == "high":
-                    match_icon = "✅"
-                else:
-                    match_icon = "⚠️"
-            else:
-                match_icon = "❌"
+            match_icon = reporting.get_match_icon(match_val, conf_val)
 
             conf_display = conf_val.title()
             if conf_display == "High":

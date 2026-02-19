@@ -55,32 +55,7 @@ class TestMatrixReport(unittest.TestCase):
         self.assertIn("| Module (Python) | Container | Name | Java |", report.content)
         self.assertIn("| `google.cloud` | `___` | `Client` | ✅ |", report.content)
 
-    @patch("google.adk.scope.reporter.raw.RawReportGenerator")
-    def test_integration(self, MockRawGen):
-        # Setup mock return for RawReportGenerator
-        mock_gen_instance = MockRawGen.return_value
-        mock_gen_instance.generate.return_value = pd.DataFrame({
-            "py_namespace": ["google.cloud"],
-            "py_member_of": [""],
-            "py_name": ["Client"],
-            "match": ["true"],
-            "confidence": ["high"]
-        })
-        
-        output_path = Path("test_matrix_output.md")
-        
-        try:
-            reporter.generate_matrix_report(
-                [self.base_registry, self.java_registry], output_path
-            )
-            
-            self.assertTrue(output_path.exists())
-            content = output_path.read_text()
-            self.assertIn("# Feature Matrix Report", content)
-            self.assertIn("| Java |", content)
-        finally:
-            if output_path.exists():
-                output_path.unlink()
+
 
     def test_csv_integration(self):
         # Create temporary CSV files

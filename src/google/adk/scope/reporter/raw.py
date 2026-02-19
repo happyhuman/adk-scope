@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 
 from google.adk.scope import features_pb2
+from google.adk.scope.utils import string
 from google.adk.scope.utils.similarity import SimilarityScorer
 
 # Global thresholds for match confidence
@@ -29,18 +30,7 @@ def get_type_display_name(f: features_pb2.Feature) -> str:
         return "unknown"
 
 
-def _get_lang_code(language: str) -> str:
-    """Returns a short code for the language (e.g. PYTHON -> py)."""
-    name = language.upper()
-    if name in {"PYTHON", "PY"}:
-        return "py"
-    elif name in {"TYPESCRIPT", "TS"}:
-        return "ts"
-    elif name == "JAVA":
-        return "java"
-    elif name in {"GOLANG", "GO"}:
-        return "go"
-    return name.lower()
+
 
 
 class RawReportGenerator:
@@ -54,8 +44,10 @@ class RawReportGenerator:
         self.scorer = SimilarityScorer()
 
         # Pre-compute useful attributes
-        self.base_code = _get_lang_code(self.base_registry.language)
-        self.target_code = _get_lang_code(self.target_registry.language)
+        self.base_name = string.get_language_name(self.base_registry.language)
+        self.target_name = string.get_language_name(self.target_registry.language)
+        self.base_code = self.base_name.lower()
+        self.target_code = self.target_name.lower()
         self.thresholds = SIMILARITY_THRESHOLDS.get(
             frozenset([self.base_code, self.target_code]),
             DEFAULT_THRESHOLDS,

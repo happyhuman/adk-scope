@@ -5,45 +5,9 @@ from typing import Dict, List
 import pandas as pd
 
 from google.adk.scope import features_pb2
-
-# Re-use helper from markdown (or we could move it to a shared utils if needed)
-# For now, I'll duplicate or import if possible.
-# Ideally we should refactor `markdown.py` to export these, or move
-# to `utils.py`.
-# But to avoid touching too many files, I'll just re-implement
-# `_get_language_name` here for now or better yet, verify if I can import it.
-# `markdown.py` has `_get_language_name` but it's "private" by convention.
-# I will make a local helper for now to be safe and self-contained.
+from google.adk.scope.utils import string, reporting
 
 
-def _get_language_name(language_name: str) -> str:
-    """Returns a properly capitalized display name for the language."""
-    name = language_name.upper()
-    if name in {"PYTHON", "PY"}:
-        return "Python"
-    elif name in {"TYPESCRIPT", "TS"}:
-        return "TypeScript"
-    elif name == "JAVA":
-        return "Java"
-    elif name in {"GOLANG", "GO"}:
-        return "Go"
-    else:
-        return language_name.title()
-
-
-def _get_language_code(language_name: str) -> str:
-    """Returns a short code for the language."""
-    name = language_name.upper()
-    if name in {"PYTHON", "PY"}:
-        return "py"
-    elif name in {"TYPESCRIPT", "TS"}:
-        return "ts"
-    elif name == "JAVA":
-        return "java"
-    elif name in {"GOLANG", "GO"}:
-        return "go"
-    else:
-        return name.lower()
 
 
 @dataclasses.dataclass
@@ -64,18 +28,8 @@ class MatrixReportGenerator:
         # We process copies to avoid side effects
         cleaned_dfs = {}
         for k, df in match_dataframes.items():
-            df_clean = df.copy()
-            # Stringified nan might be "nan" or "NaN" if read from CSV
-            # Also actual np.nan
-            # We want to target: namespace, member_of, name columns primarily?
-            # Or just fill na everywhere for display?
-            # Let's target specific columns to be safe, or just fillna.
-            df_clean = df_clean.fillna("___")
-            # Replace empty strings
-            df_clean = df_clean.replace("", "___")
-            # Replace "nan" strings if they exist
-            df_clean = df_clean.replace("nan", "___")
-            df_clean = df_clean.replace("NaN", "___")
+            # Clean dataframe
+            df_clean = reporting.clean_dataframe(df)
             cleaned_dfs[k] = df_clean
 
         self.match_dataframes = cleaned_dfs
@@ -83,12 +37,12 @@ class MatrixReportGenerator:
         self.target_registries = target_registries or []
 
         if base_registry:
-            self.base_name = _get_language_name(base_registry.language)
-            self.base_code = _get_language_code(base_registry.language)
+            self.base_name = string.get_language_name(base_registry.language)
+            self.base_code = self.base_name.lower()
             self.base_version = base_registry.version
         else:
-            self.base_name = _get_language_name(base_language or "Unknown")
-            self.base_code = _get_language_code(base_language or "unknown")
+            self.base_name = string.get_language_name(base_language or "Unknown")
+            self.base_code = self.base_name.lower()
             self.base_version = base_version or "Unknown"
 
     def generate(self) -> MatrixReport:
@@ -151,11 +105,11 @@ class MatrixReportGenerator:
         # or iterate based on preferred order if registries ARE provided.
         if self.target_registries:
             target_codes = [
-                _get_language_code(r.language) for r in self.target_registries
+                string.get_language_name(r.language).lower() for r in self.target_registries
             ]
             # Ensure we only use those that are in dataframes
             target_iterator = [
-                (code, _get_language_name(code))
+                (code, string.get_language_name(code))
                 for code in target_codes
                 if code in self.match_dataframes
             ]
@@ -163,7 +117,7 @@ class MatrixReportGenerator:
             # Sort keys for consistent output
             target_codes = sorted(list(self.match_dataframes.keys()))
             target_iterator = [
-                (code, _get_language_name(code)) for code in target_codes
+                (code, string.get_language_name(code)) for code in target_codes
             ]
 
         for target_code, target_name in target_iterator:
@@ -180,11 +134,7 @@ class MatrixReportGenerator:
             def get_icon(row):
                 match = row.get("match", "false")
                 conf = row.get("confidence", "low")
-                # Handle boolean or string
-                is_match = str(match).lower() == "true"
-                if is_match:
-                    return "✅" if conf == "high" else "⚠️"
-                return "❌"
+                return reporting.get_match_icon(match, conf)
 
             # We can't apply this directly to `df` efficiently if we are going
             # to merge, unless we create a temp column.
