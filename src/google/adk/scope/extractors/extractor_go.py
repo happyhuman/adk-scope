@@ -1,5 +1,7 @@
 import logging
 import pathlib
+import re
+import subprocess
 from typing import Iterator, List
 
 import tree_sitter_go as tsgo
@@ -216,21 +218,42 @@ def extract_features(
 
 
 def get_version(repo_root: pathlib.Path) -> str:
-    """Get the version of the ADK from internal/version/version.go."""
+    """Get the version of the ADK.
+
+    Args:
+        repo_root: The root directory of the repository.
+
+    Returns:
+        The extracted version string, or an empty string if not found.
+    """
+    # 1. Try git describe to get the tag version (e.g., v1.3.0)
+    try:
+        version = subprocess.check_output(
+            ["git", "describe", "--tags", "--abbrev=0"],
+            cwd=str(repo_root),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        if version:
+            return version
+    except Exception:
+        pass
+
+    # 2. Fallback: parse internal/version/version.go
     version_path = repo_root / "internal" / "version" / "version.go"
     if version_path.exists():
         try:
             content = version_path.read_text()
-            for line in content.splitlines():
-                if "const Version string =" in line:
-                    # e.g., const Version string = "0.3.0"
-                    parts = line.split('"')
-                    if len(parts) >= 3:
-                        return parts[1]
+            # Match both `const Version string = "..."` and `const Version = "..."`
+            match = re.search(
+                r'const\s+Version\s+(?:string\s+)?=\s*"([^"]+)"', content
+            )
+            if match:
+                return match.group(1)
         except Exception as e:
             logger.warning("Failed to read version.go file: %s", e)
 
-    # Fallback to reading go.mod module path if version isn't found
+    # 3. Fallback to reading go.mod module path
     go_mod_path = repo_root / "go.mod"
     if go_mod_path.exists():
         try:

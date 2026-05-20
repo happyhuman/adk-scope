@@ -95,7 +95,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH}"
 
 # Run the python reporter
-python3 "${SCRIPT_DIR}/src/google/adk/scope/reporter/reporter.py" \
+uv run python "${SCRIPT_DIR}/src/google/adk/scope/reporter/reporter.py" \
     --registries "${REGISTRIES[@]}" \
     --output "${FULL_OUTPUT_PATH}" \
 

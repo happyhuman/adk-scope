@@ -82,8 +82,6 @@ class RawReportGenerator:
             # But earlier we decided to allow cross-type.
             
             for f_target in target_features:
-                if "LlmAgent" in str(f_base):
-                     print(f"DEBUG_RAW_BASE: name='{f_base.name}', orig='{f_base.original_name}', norm='{f_base.normalized_name}'")
                 score, details = self.scorer.get_similarity_score(f_base, f_target)
                 if score > 0.1:  # optimization: ignore very low scores
                     candidates.append((score, f_base, f_target, details))

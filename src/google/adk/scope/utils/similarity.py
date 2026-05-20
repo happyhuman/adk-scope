@@ -1,5 +1,6 @@
 import logging
 import re
+from collections import Counter
 from typing import Optional, Set
 
 import numpy as np
@@ -50,36 +51,36 @@ class SimilarityScorer:
         max_len = max(len(s1), len(s2))
         lev_score = 1.0 - (dist / max_len)
         
-        # 2. Token Set Ratio (Word-based, handles reordering/partial match)
-        token_score = self._token_set_ratio(s1, s2)
+        # 2. Jaccard Similarity (Multiset-based, handles reordering/partial match)
+        jaccard_score = self._jaccard_similarity(s1, s2)
         
         # 3. Jaro-Winkler (Prefix bias, handles typos/short strings)
         jw_score = jaro_winkler_similarity(s1, s2)
         
         # Average the three scores
-        return (lev_score + token_score + jw_score) / 3.0
+        return (lev_score + jaccard_score + jw_score) / 3.0
 
-    def _tokenize(self, s: str) -> Set[str]:
-        """Splits string into tokens based on snake_case and CamelCase."""
-        # Handle snake_case and kebab-case
-        s = s.replace("_", " ").replace("-", " ")
-        # Handle CamelCase (insert space before capitals)
-        s = re.sub(r"([a-z])([A-Z])", r"\1 \2", s)
-        # Split and lower
-        return {w.lower() for w in s.split() if w}
-
-    def _token_set_ratio(self, s1: str, s2: str) -> float:
-        """Calculates Intersection / Union of token sets."""
-        t1 = self._tokenize(s1)
-        t2 = self._tokenize(s2)
-        
-        if not t1 or not t2:
+    def _jaccard_similarity(self, s1: str, s2: str) -> float:
+        """Calculates Jaccard similarity based on character abundance (multisets)."""
+        if not s1 and not s2:
+            return 1.0
+        if not s1 or not s2:
             return 0.0
-            
-        intersection = t1 & t2
-        union = t1 | t2
+
+        c1 = Counter(s1.lower())
+        c2 = Counter(s2.lower())
         
-        return len(intersection) / len(union) if union else 0.0
+        # Union of keys
+        all_chars = set(c1.keys()) | set(c2.keys())
+        
+        intersection = 0
+        union = 0
+        
+        for char in all_chars:
+            intersection += min(c1[char], c2[char])
+            union += max(c1[char], c2[char])
+            
+        return intersection / union if union > 0 else 0.0
 
     def _fuzzy_type_match(self, types1: list, types2: list) -> float:
         """Calculates a fuzzy similarity score between two lists of types."""

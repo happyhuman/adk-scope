@@ -2,18 +2,42 @@ python:
   source_root: src/google/adk
   exclude:
     - examples
+    - samples
+    - test
+    - tests
+    - unittests
+    - integration
+    - fixture
 
 typescript:
   source_root: core/src/
   exclude:
     - examples
+    - samples
+    - test
+    - tests
+    - conformance
+    - integration
+    - e2e
 
 java:
   source_root: core/src/main/java/com/google/adk
   exclude:
-    - com.example
+    - examples
+    - samples
+    - tutorials
+    - example
+    - test
 
 go:
   source_root: .
   exclude:
     - examples
+    - test
+    - tests
+    - testutil
+    - testing
+    - testdata
+    - session_test
+    - fakes
+    - exampletool

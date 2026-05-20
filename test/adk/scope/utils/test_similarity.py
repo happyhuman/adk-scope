@@ -48,7 +48,7 @@ class TestSimilarityScorer(unittest.TestCase):
 
     def test_identical_features(self):
         """Test that identical features yield a score of 1.0."""
-        score = self.scorer.get_similarity_score(self.feature1, self.feature1)
+        score, _ = self.scorer.get_similarity_score(self.feature1, self.feature1)
         self.assertAlmostEqual(score, 1.0)
 
     def test_completely_dissimilar_features(self):
@@ -59,7 +59,7 @@ class TestSimilarityScorer(unittest.TestCase):
             normalized_namespace="a_galaxy_far_away",
             type=features_pb.Feature.Type.INSTANCE_METHOD,
         )
-        score = self.scorer.get_similarity_score(self.feature1, feature2)
+        score, _ = self.scorer.get_similarity_score(self.feature1, feature2)
         self.assertLess(score, 0.4, f"Early exit failed; score was {score}")
 
     def test_partial_similarity(self):
@@ -79,7 +79,7 @@ class TestSimilarityScorer(unittest.TestCase):
             "type": features_pb.Feature.Type.INSTANCE_METHOD,
         }
         feature2 = features_pb.Feature(**feature2_args)
-        score = self.scorer.get_similarity_score(self.feature1, feature2)
+        score, _ = self.scorer.get_similarity_score(self.feature1, feature2)
         self.assertTrue(
             0 < score < 1.0,
             f"Score {score} was not in the expected range (0, 1)",
@@ -102,7 +102,7 @@ class TestSimilarityScorer(unittest.TestCase):
         )
 
         # One empty, one not - should be an imperfect match
-        score = self.scorer.get_similarity_score(
+        score, _ = self.scorer.get_similarity_score(
             feature_no_params, feature_one_param
         )
         self.assertLess(
@@ -120,7 +120,7 @@ class TestSimilarityScorer(unittest.TestCase):
             type=features_pb.Feature.Type.INSTANCE_METHOD,
         )
 
-        score = self.scorer.get_similarity_score(
+        score, _ = self.scorer.get_similarity_score(
             self.feature1, feature_no_return
         )
         self.assertLess(
@@ -203,7 +203,7 @@ class TestSimilarityScorer(unittest.TestCase):
         }
         py_feature = features_pb.Feature(**py_feature_args)
 
-        score = self.scorer.get_similarity_score(ts_feature, py_feature)
+        score, _ = self.scorer.get_similarity_score(ts_feature, py_feature)
 
         self.assertTrue(
             0.5 < score < 1.0,
@@ -218,7 +218,7 @@ class TestSimilarityScorer(unittest.TestCase):
             normalized_namespace="my_module",
             type=features_pb.Feature.Type.CONSTRUCTOR,
         )
-        score = self.scorer.get_similarity_score(
+        score, _ = self.scorer.get_similarity_score(
             self.feature1, feature_constructor
         )
         self.assertEqual(score, 0.0)
@@ -241,7 +241,7 @@ class TestSimilarityScorer(unittest.TestCase):
         )
 
         # Despite name difference, should score very highly due to weight shift
-        score = self.scorer.get_similarity_score(c1, c2)
+        score, _ = self.scorer.get_similarity_score(c1, c2)
         self.assertGreater(score, 0.9)
 
     def test_function_weights(self):
@@ -261,7 +261,7 @@ class TestSimilarityScorer(unittest.TestCase):
             type=features_pb.Feature.Type.FUNCTION,
         )
 
-        score = self.scorer.get_similarity_score(f1, f2)
+        score, _ = self.scorer.get_similarity_score(f1, f2)
         self.assertGreater(score, 0.9)
 
 

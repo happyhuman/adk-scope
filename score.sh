@@ -10,4 +10,4 @@ if [ "$#" -lt 2 ]; then
     exit 1
 fi
 
-python3 "${SCRIPT_DIR}/src/google/adk/scope/utils/score_features.py" "$@"
+uv run python "${SCRIPT_DIR}/src/google/adk/scope/utils/score_features.py" "$@"

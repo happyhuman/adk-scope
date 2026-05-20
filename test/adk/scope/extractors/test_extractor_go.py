@@ -1,3 +1,4 @@
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -130,14 +131,41 @@ class TestExtractor(unittest.TestCase):
                 mock_type_spec, mock_path.resolve(), Path("/repo"), "", "adk"
             )
 
-    def test_get_version(self):
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch(
-                "pathlib.Path.read_text",
-                return_value="module github.com/my/module",
-            ):
-                version = get_version(Path("/repo"))
-                self.assertEqual(version, "github.com/my/module")
+    @patch("subprocess.check_output")
+    def test_get_version_git_describe(self, mock_check_output):
+        mock_check_output.return_value = "v1.3.0\n"
+        version = get_version(Path("/repo"))
+        self.assertEqual(version, "v1.3.0")
+        mock_check_output.assert_called_once_with(
+            ["git", "describe", "--tags", "--abbrev=0"],
+            cwd="/repo",
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+
+    @patch("subprocess.check_output", side_effect=Exception)
+    @patch("pathlib.Path.exists")
+    @patch("pathlib.Path.read_text")
+    def test_get_version_version_go_file(
+        self, mock_read_text, mock_exists, mock_check_output
+    ):
+        mock_exists.side_effect = [True]
+        mock_read_text.return_value = 'const Version = "1.2.0"'
+
+        version = get_version(Path("/repo"))
+        self.assertEqual(version, "1.2.0")
+
+    @patch("subprocess.check_output", side_effect=Exception)
+    @patch("pathlib.Path.exists")
+    @patch("pathlib.Path.read_text")
+    def test_get_version_go_mod(
+        self, mock_read_text, mock_exists, mock_check_output
+    ):
+        mock_exists.side_effect = [False, True]
+        mock_read_text.return_value = "module github.com/my/module"
+
+        version = get_version(Path("/repo"))
+        self.assertEqual(version, "github.com/my/module")
 
     def test_find_files(self):
         # Mock Path.rglob
