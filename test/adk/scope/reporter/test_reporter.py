@@ -159,7 +159,7 @@ class TestReporter(unittest.TestCase):
             )
             self.assertIn(
                 "google.adk.events/base_member/base_name` | "
-                "`adk.events/target_member/target_name` | 0.7898 | ✅ | **High**",
+                "`adk.events/target_member/target_name` | 0.8043 | ✅ | **High**",
                 module_content
             )
 

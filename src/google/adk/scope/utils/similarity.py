@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 # Default weights for the similarity calculation.
 DEFAULT_SIMILARITY_WEIGHTS = {
     "name": 0.35,
-    "member_of": 0.30,
-    "namespace": 0.15,
+    "member_of": 0.25,
+    "namespace": 0.10,
     "parameters": 0.15,
-    "return_type": 0.05,
+    "return_type": 0.15,
 }
 
 
