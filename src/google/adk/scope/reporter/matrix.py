@@ -36,13 +36,15 @@ class MatrixReportGenerator:
 
         if base_registry:
             self.base_name = string.get_language_name(base_registry.language)
-            self.base_code = self.base_name.lower()
+            self.base_code = string.get_language_code(base_registry.language)
             self.base_version = base_registry.version
         else:
             self.base_name = string.get_language_name(
                 base_language or "Unknown"
             )
-            self.base_code = self.base_name.lower()
+            self.base_code = string.get_language_code(
+                base_language or "Unknown"
+            )
             self.base_version = base_version or "Unknown"
 
     def generate(self) -> MatrixReport:

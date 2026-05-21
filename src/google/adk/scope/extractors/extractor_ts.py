@@ -131,12 +131,13 @@ def extract_features(
     processor = NodeProcessor(GLOBAL_TYPE_MAP)
     features = []
 
-    # Query for Class Declarations, Method Definitions, Function Declarations
+    # Query for Class Declarations, Method/Signature Definitions
     query = Query(
         TS_LANGUAGE,
         """
     (function_declaration) @func
     (method_definition) @method
+    (method_signature) @method
   """,
     )
 

@@ -19,6 +19,60 @@ PARSER.language = GO_LANGUAGE
 logger = logging.getLogger(__name__)
 
 
+# Repository-level cache to keep parsed package structures.
+# key: Path (repo root directory), value: struct definitions dictionary
+_REPO_STRUCTS_CACHE = {}
+
+
+def _pre_parse_repo_structs(
+    repo_root: pathlib.Path,
+) -> dict[str, list[tuple[str, str, bool]]]:
+    """Scans all Go files under repo_root and extracts struct definitions."""
+    global _REPO_STRUCTS_CACHE
+    repo_root = repo_root.resolve()
+    if repo_root in _REPO_STRUCTS_CACHE:
+        return _REPO_STRUCTS_CACHE[repo_root]
+
+    logger.debug("Pre-parsing repository for Go structs: %s", repo_root)
+
+    # Scan ALL Go files recursively under repo_root!
+    # Reuse find_files helper to exclude tests, hidden directories, etc.
+    go_files = list(find_files(repo_root, recursive=True))
+
+    # Simple struct-only Tree-sitter query
+    struct_query = Query(
+        GO_LANGUAGE,
+        """
+        (type_declaration
+          (type_spec
+            name: (type_identifier) @struct_name
+            type: (struct_type) @struct_body
+          )
+        )
+        """,
+    )
+
+    # Simple NodeProcessor with just register_struct capability
+    temp_processor = NodeProcessor()
+
+    for file_path in go_files:
+        try:
+            content = file_path.read_bytes()
+            tree = PARSER.parse(content)
+            cursor = QueryCursor(struct_query)
+            captures = cursor.captures(tree.root_node)
+
+            struct_bodies = captures.get("struct_body", [])
+            for body in struct_bodies:
+                temp_processor.register_struct(body)
+        except Exception as e:
+            logger.debug("Failed to pre-parse structs in %s: %s", file_path, e)
+
+    # Save to global cache
+    _REPO_STRUCTS_CACHE[repo_root] = temp_processor._struct_definitions
+    return temp_processor._struct_definitions
+
+
 def find_files(
     root: pathlib.Path, recursive: bool = True
 ) -> Iterator[pathlib.Path]:
@@ -71,7 +125,9 @@ def extract_features(
         )
         return []
 
-    processor = NodeProcessor()
+    # Pre-parse repository-wide structs to enable cross-package struct matching
+    repo_structs = _pre_parse_repo_structs(repo_root)
+    processor = NodeProcessor(struct_definitions=repo_structs)
 
     # Pre-process structs to build the definition map
     # We need to re-query or process struct nodes specifically.

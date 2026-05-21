@@ -264,6 +264,24 @@ class TestSimilarityScorer(unittest.TestCase):
         score, _ = self.scorer.get_similarity_score(f1, f2)
         self.assertGreater(score, 0.9)
 
+    def test_naming_redundancy_stripping(self):
+        """Test that packaging redundancies are stripped at scoring time."""
+        py_feature = features_pb.Feature(
+            normalized_name="save_artifact",
+            normalized_member_of="in_memory_artifact_service",
+            normalized_namespace="artifacts",
+            type=features_pb.Feature.Type.INSTANCE_METHOD,
+        )
+        go_feature = features_pb.Feature(
+            normalized_name="save",
+            normalized_member_of="in_memory_service",
+            normalized_namespace="adk_artifact",
+            type=features_pb.Feature.Type.INSTANCE_METHOD,
+        )
+
+        score, _ = self.scorer.get_similarity_score(py_feature, go_feature)
+        self.assertGreaterEqual(score, 0.8)
+
 
 if __name__ == "__main__":
     unittest.main()

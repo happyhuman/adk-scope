@@ -150,9 +150,9 @@ class TestExtractMain(unittest.TestCase):
 
         self.mock_py_extractor.extract_features.assert_called()
         self.assertTrue(self.output_dir.exists())
-        self.assertTrue((self.output_dir / "py.json").exists())
-        self.assertTrue((self.output_dir / "py.yaml").exists())
-        self.assertTrue((self.output_dir / "py.txtpb").exists())
+        self.assertTrue((self.output_dir / "python.json").exists())
+        self.assertTrue((self.output_dir / "python.yaml").exists())
+        self.assertTrue((self.output_dir / "python.txtpb").exists())
 
     def test_input_file_not_found(self):
         self.configure_args(lang="python", input_file="/non/existent.py")
@@ -175,9 +175,9 @@ class TestExtractMain(unittest.TestCase):
 
         self.mock_py_extractor.find_files.assert_called_with(d, recursive=False)
         self.assertTrue(self.output_dir.exists())
-        self.assertTrue((self.output_dir / "py.json").exists())
-        self.assertTrue((self.output_dir / "py.yaml").exists())
-        self.assertTrue((self.output_dir / "py.txtpb").exists())
+        self.assertTrue((self.output_dir / "python.json").exists())
+        self.assertTrue((self.output_dir / "python.yaml").exists())
+        self.assertTrue((self.output_dir / "python.txtpb").exists())
 
     def test_input_repo_mode(self):
         r = self.root
@@ -197,9 +197,9 @@ class TestExtractMain(unittest.TestCase):
             r / "src", recursive=True
         )
         self.assertTrue(self.output_dir.exists())
-        self.assertTrue((self.output_dir / "py.json").exists())
-        self.assertTrue((self.output_dir / "py.yaml").exists())
-        self.assertTrue((self.output_dir / "py.txtpb").exists())
+        self.assertTrue((self.output_dir / "python.json").exists())
+        self.assertTrue((self.output_dir / "python.yaml").exists())
+        self.assertTrue((self.output_dir / "python.txtpb").exists())
 
 
 if __name__ == "__main__":

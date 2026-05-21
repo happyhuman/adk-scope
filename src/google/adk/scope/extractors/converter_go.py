@@ -25,11 +25,16 @@ def _to_pascal_case(s: str) -> str:
 class NodeProcessor:
     """Process Tree-sitter nodes into Feature objects for Go."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        struct_definitions: Optional[
+            dict[str, list[tuple[str, str, bool]]]
+        ] = None,
+    ):
         self.normalizer = TypeNormalizer()
         # Mapping from struct name to list of
         # (field_name, field_type, is_optional)
-        self._struct_definitions: dict[str, list[tuple[str, str, bool]]] = {}
+        self._struct_definitions = struct_definitions or {}
 
     def process(
         self,

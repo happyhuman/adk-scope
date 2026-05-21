@@ -53,7 +53,11 @@ class NodeProcessor:
         # - public_field_definition (if arrow function property? maybe skip
         # for now per prompt "functions defined")
 
-        if node.type not in ("function_declaration", "method_definition"):
+        if node.type not in (
+            "function_declaration",
+            "method_definition",
+            "method_signature",
+        ):
             return None
 
         # 1. Identity
@@ -264,12 +268,8 @@ class NodeProcessor:
                 text = child.text.decode("utf-8")
                 if text in ("private", "protected"):
                     return True
-            # getters/setters: (method_definition "get" ... )?
-            # actually usually: (method_definition name:
-            # (property_identifier) ...)
-            # Checking if it is a getter/setter
-            # In tree-sitter-typescript, it might be separate 'get' 'set' token
-            if child.type in ("get", "set"):
+            # Allow getters to be extracted, but skip setters
+            if child.type == "set":
                 return True
 
         return False

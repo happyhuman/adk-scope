@@ -9,9 +9,9 @@ from google.adk.scope.utils.similarity import SimilarityScorer
 
 # Global thresholds for match confidence
 SIMILARITY_THRESHOLDS = {
-    frozenset(["python", "go"]): {"high": 0.75, "avg": 0.70},
-    frozenset(["python", "java"]): {"high": 0.8, "avg": 0.75},
-    frozenset(["python", "typescript"]): {"high": 0.7, "avg": 0.55},
+    frozenset(["py", "go"]): {"high": 0.75, "avg": 0.70},
+    frozenset(["py", "java"]): {"high": 0.8, "avg": 0.75},
+    frozenset(["py", "ts"]): {"high": 0.7, "avg": 0.55},
 }
 
 # Fallback thresholds if language pair not explicitly defined
@@ -45,8 +45,10 @@ class RawReportGenerator:
         self.target_name = string.get_language_name(
             self.target_registry.language
         )
-        self.base_code = self.base_name.lower()
-        self.target_code = self.target_name.lower()
+        self.base_code = string.get_language_code(self.base_registry.language)
+        self.target_code = string.get_language_code(
+            self.target_registry.language
+        )
         self.thresholds = SIMILARITY_THRESHOLDS.get(
             frozenset([self.base_code, self.target_code]),
             DEFAULT_THRESHOLDS,
@@ -75,37 +77,61 @@ class RawReportGenerator:
         target_features = self.target_registry.features
         thresholds = self.thresholds
 
-        # 1. Collect all candidate matches
+        # Group target features by unique key to handle overloads
+        target_groups = defaultdict(list)
+        for f in target_features:
+            key = (
+                f.namespace or f.normalized_namespace or "",
+                f.member_of or f.normalized_member_of or "",
+                f.original_name or f.normalized_name or "",
+                f.type,
+            )
+            target_groups[key].append(f)
+
+        # 1. Collect all candidate matches comparing against overload groups
         candidates = []
         for f_base in base_features:
-            # Optimization: Only compare with features of compatible types to reduce N*M complexity
-            # But earlier we decided to allow cross-type.
-            
-            for f_target in target_features:
-                score, details = self.scorer.get_similarity_score(f_base, f_target)
-                if score > 0.1:  # optimization: ignore very low scores
-                    candidates.append((score, f_base, f_target, details))
+            for t_key, t_list in target_groups.items():
+                best_score = -1.0
+                best_target = None
+                best_details = None
+
+                for f_target in t_list:
+                    score, details = self.scorer.get_similarity_score(
+                        f_base, f_target
+                    )
+                    if score > best_score:
+                        best_score = score
+                        best_target = f_target
+                        best_details = details
+
+                if best_score > 0.1:
+                    candidates.append(
+                        (best_score, f_base, best_target, t_key, best_details)
+                    )
 
         # 2. Sort by score descending
         candidates.sort(key=lambda x: x[0], reverse=True)
 
         # 3. Greedy Assignment
         used_base = set()
-        used_target = set()
+        used_target_keys = set()
         matches = []
-        
-        for score, f_base, f_target, details in candidates:
-            if id(f_base) in used_base or id(f_target) in used_target:
+
+        for score, f_base, f_target, t_key, details in candidates:
+            if id(f_base) in used_base or t_key in used_target_keys:
                 continue
-            
-            # This is a valid unique match
-            used_base.add(id(f_base))
-            used_target.add(id(f_target))
-            
-            # Determine validation status
+
             is_valid = score >= thresholds["avg"]
+            if not is_valid:
+                # Veto: Do not pair low-score mismatches
+                continue
+
+            used_base.add(id(f_base))
+            used_target_keys.add(t_key)
+
             confidence = "high" if score >= thresholds["high"] else "low"
-            
+
             matches.append(
                 self._create_match_row(
                     f_base, f_target, score, is_valid, confidence
@@ -121,13 +147,22 @@ class RawReportGenerator:
                     )
                 )
 
+        # 4.5 Add unmatched target features (Target-exclusive)
+        for t_key, t_list in target_groups.items():
+            if t_key not in used_target_keys:
+                matches.append(
+                    self._create_match_row(
+                        None, t_list[0], 0.0, False, "low"
+                    )
+                )
+
         # 5. Sort output by base feature name for readability
         matches.sort(key=lambda x: (
             x.get(f"{self.base_code}_module", ""),
             x.get(f"{self.base_code}_container", ""),
             x.get(f"{self.base_code}_name", "")
         ))
-        
+
         df = self._create_dataframe(matches)
 
         if output_path:

@@ -125,9 +125,9 @@ class TestReporter(unittest.TestCase):
 
             # Check for High/Low confidence summaries
             self.assertIn(
-                "| **✅ High Confidence Matches** | **1** |", report_md
+                "| **✅ High Confidence Matches** | **2** |", report_md
             )
-            self.assertIn("| **⚠️ Low Confidence Matches** | **1** |", report_md)
+            self.assertIn("| **⚠️ Low Confidence Matches** | **0** |", report_md)
             self.assertIn("| **❌ Mismatches** | **1** |", report_md)
             self.assertIn("## Module Summary", report_md)
 
@@ -152,22 +152,22 @@ class TestReporter(unittest.TestCase):
             self.assertIn("## Feature Details", module_content)
 
             # Solid Matches (High Confidence)
-            self.assertIn("✅", module_content)
-            self.assertIn("**High**", module_content)
-            self.assertIn("`fSameBase`", module_content)
-            self.assertIn("`fSameTarget`", module_content)
-
-            # Potential Matches (Low Confidence)
-            self.assertIn("⚠️", module_content)
-            self.assertIn("Low", module_content)
-            self.assertIn("`base_name`", module_content)
-            self.assertIn("`target_name`", module_content)
+            self.assertIn(
+                "google.adk.events/BaseClass/fSameBase` | "
+                "`adk.events/TargetClass/fSameTarget` | 1.0000 | ✅ | **High**",
+                module_content
+            )
+            self.assertIn(
+                "google.adk.events/base_member/base_name` | "
+                "`adk.events/target_member/target_name` | 0.7898 | ✅ | **High**",
+                module_content
+            )
 
             # Unmatched / Gaps (in 'stuff' module)
             self.assertIn("stuff.md", result_md.module_reports)
             stuff_content = result_md.module_reports["stuff.md"]
             self.assertIn("❌", stuff_content)
-            self.assertIn("`totally_diff`", stuff_content)
+            self.assertIn("stuff/totally_diff", stuff_content)
 
     def test_generate_raw_report(self):
         """Tests the raw CSV report generation via RawReportGenerator."""
@@ -255,9 +255,9 @@ class TestReporter(unittest.TestCase):
         df = generator.generate()
 
         # Check that we found the match in n2
-        row = df.iloc[0]
-        self.assertEqual(row["java_namespace"], "n2")
-        self.assertEqual(row["score"], 1.0)
+        matched_row = df[df["py_name"] == "my_feature"].iloc[0]
+        self.assertEqual(matched_row["java_namespace"], "n2")
+        self.assertEqual(matched_row["score"], 1.0)
 
     def test_raw_integration(self):
         """Tests the raw report generation end-to-end."""
@@ -373,7 +373,7 @@ class TestReporter(unittest.TestCase):
             instance = MockScorer.return_value
 
             # Case 1: High match
-            instance.get_similarity_score.return_value = 0.9
+            instance.get_similarity_score.return_value = (0.9, {})
             gen = reporter.raw.RawReportGenerator(base, target)
             df = gen.generate()
             # Since generate iterates through base features, and we have 1 base
@@ -391,37 +391,23 @@ class TestReporter(unittest.TestCase):
             self.assertEqual(df.iloc[0]["confidence"], "high")
 
             # Test Avg (Low Confidence)
-            instance.get_similarity_score.return_value = 0.55
+            instance.get_similarity_score.return_value = (0.72, {})
             gen = reporter.raw.RawReportGenerator(base, target)
             df = gen.generate()
             self.assertEqual(df.iloc[0]["match"], "true")
             self.assertEqual(df.iloc[0]["confidence"], "low")
 
             # Test Low (Mismatch)
-            instance.get_similarity_score.return_value = 0.4
+            instance.get_similarity_score.return_value = (0.4, {})
             gen = reporter.raw.RawReportGenerator(base, target)
             df = gen.generate()
             self.assertEqual(df.iloc[0]["match"], "false")
             self.assertEqual(
-                df.iloc[0]["confidence"], "high"
-            )  # Mismatches are high confidence if very low score?
-            # Wait, raw.py logic:
-            # if score > high_thresh: true, high
-            # elif score > avg_thresh: true, low
-            # else: match=false
-            # if match=false, confidence depends on score?
-            # Actually raw.py says:
-            # if match: ...
-            # else: row["match"] = "false"
-            # And confidence is set to "high" by default for mismatches in
-            # raw.py? Let's check raw.py.
-            # "confidence": "high" is default init.
-            # If match found, it might be updated to "low".
-            # If no match found (score < avg), it remains "high" (High
-            # confidence that it is NOT a match).
+                df.iloc[0]["confidence"], "low"
+            )
 
             self.assertEqual(df.iloc[0]["match"], "false")
-            self.assertEqual(df.iloc[0]["confidence"], "high")
+            self.assertEqual(df.iloc[0]["confidence"], "low")
 
 
 if __name__ == "__main__":

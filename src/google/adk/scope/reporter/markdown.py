@@ -27,8 +27,8 @@ class MarkdownReportGenerator:
 
         self.base_name = string.get_language_name(base_registry.language)
         self.target_name = string.get_language_name(target_registry.language)
-        self.base_code = self.base_name.lower()
-        self.target_code = self.target_name.lower()
+        self.base_code = string.get_language_code(base_registry.language)
+        self.target_code = string.get_language_code(target_registry.language)
 
     def generate(self) -> MarkdownReport:
         """Generates a Markdown parity report from the DataFrame."""

@@ -244,9 +244,11 @@ class TestNodeProcessor(unittest.TestCase):
             "method_definition", children=[get_kw, name]
         )
         node_get.child_by_field_name.side_effect = node_mod_child
-        self.assertIsNone(
-            self.processor.process(node_get, self.file_path, self.repo_root)
+        result_get = self.processor.process(
+            node_get, self.file_path, self.repo_root
         )
+        self.assertIsNotNone(result_get)
+        self.assertEqual(result_get.original_name, "myPriv")
 
     def test_async_extraction(self):
         # async method

@@ -221,6 +221,50 @@ class SimilarityScorer:
         )
         return score
 
+    def _clean_identifier(self, name: str, namespace: str) -> str:
+        """Strips namespace prefixes/suffixes from the identifier."""
+        if not name or not namespace:
+            return name
+
+        # Strip generic packaging suffixes: e.g. 'adk_artifacts' -> 'artifact'
+        clean_ns = namespace.lower()
+        if clean_ns.startswith("adk_"):
+            clean_ns = clean_ns[4:]
+
+        # Singularize namespace for robust mapping: artifacts -> artifact
+        clean_ns = clean_ns.rstrip("s")
+
+        name_clean = name.lower()
+
+        # Suffix and prefix clean patterns
+        to_strip = [f"_{clean_ns}", clean_ns]
+        for s in to_strip:
+            if name_clean.endswith(s):
+                name_clean = name_clean[: -len(s)].rstrip("_")
+            elif name_clean.startswith(s):
+                name_clean = name_clean[len(s) :].lstrip("_")
+
+        return name_clean
+
+    def _clean_member(self, member: str, namespace: str) -> str:
+        """Strips package/namespace names from struct/class names."""
+        if not member or not namespace:
+            return member
+
+        clean_ns = namespace.lower()
+        if clean_ns.startswith("adk_"):
+            clean_ns = clean_ns[4:]
+
+        # e.g. 'artifacts' -> 'Artifact'
+        clean_ns = clean_ns.rstrip("s").capitalize()
+
+        # e.g. 'InMemoryArtifactService' -> 'InMemoryService'
+        member_clean = member
+        if clean_ns in member_clean:
+            member_clean = member_clean.replace(clean_ns, "")
+
+        return member_clean.lower()
+
     def get_similarity_score(
         self, feature1: features_pb.Feature, feature2: features_pb.Feature
     ) -> float:
@@ -282,19 +326,35 @@ class SimilarityScorer:
             logger.debug(f"Incompatible types: {t1} vs {t2}. Returning 0.0")
             return 0.0, {}  # Fast out for incompatible types
 
-        # 2. Similarity Calculations
+        # 2. Clean naming redundancies
+        f1_ns = feature1.normalized_namespace or ""
+        f2_ns = feature2.normalized_namespace or ""
+
+        f1_name_clean = self._clean_identifier(
+            feature1.normalized_name, f1_ns
+        )
+        f2_name_clean = self._clean_identifier(
+            feature2.normalized_name, f2_ns
+        )
+
+        f1_member_clean = self._clean_member(
+            feature1.normalized_member_of, f1_ns
+        )
+        f2_member_clean = self._clean_member(
+            feature2.normalized_member_of, f2_ns
+        )
+
+        # 3. Similarity Calculations
         scores = {
-            "name": self.get_similarity(
-                feature1.normalized_name, feature2.normalized_name
-            ),
+            "name": self.get_similarity(f1_name_clean, f2_name_clean),
             "member_of": self.get_similarity(
-                feature1.normalized_member_of, feature2.normalized_member_of
+                f1_member_clean, f2_member_clean
             ),
             "namespace": self.get_similarity(
                 feature1.normalized_namespace, feature2.normalized_namespace
             ),
         }
-        
+
         # Heuristic: If comparing INSTANCE_METHOD vs FUNCTION, and method name is generic 
         # (e.g. __call__, invoke), use the Class Name (member_of) as the Name for comparison.
         if {t1, t2} == {FeatureType.INSTANCE_METHOD, FeatureType.FUNCTION}:
@@ -312,7 +372,11 @@ class SimilarityScorer:
                  f2_name = feature2.normalized_member_of
                  heuristic_applied = True
 
-             scores["name"] = self.get_similarity(f1_name, f2_name)
+             f1_name_clean_h = self._clean_identifier(f1_name, f1_ns)
+             f2_name_clean_h = self._clean_identifier(f2_name, f2_ns)
+             scores["name"] = self.get_similarity(
+                 f1_name_clean_h, f2_name_clean_h
+             )
              
              # NAME VETO: If names are too dissimilar, it's not a match.
              # Only apply if name is weighted (skips CONSTRUCTOR where name weight is 0.0)
